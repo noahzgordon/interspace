@@ -7,6 +7,7 @@ import Svg exposing (Svg, svg, g)
 import Svg.Attributes exposing (viewBox, fill, width, height, cx, cy, r, transform)
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
+import Browser.Events exposing (onMouseMove)
 import Json.Decode as Json
 
 
@@ -53,10 +54,17 @@ maxScale =
 {- MODEL -}
 
 
+type alias Coordinates =
+    { x : Float
+    , y : Float
+    }
+
+
 type alias Model =
     { viewport : Maybe { width : Float, height : Float }
     , scale : Float
-    , focalPoint : { x : Float, y : Float }
+    , focalPoint : Coordinates
+    , mousePosition : Coordinates
     }
 
 
@@ -65,6 +73,7 @@ init _ =
     ( { viewport = Nothing
       , scale = 1
       , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
+      , mousePosition = { x = 0, y = 0 }
       }
     , Task.perform ReceivedViewportInfo getViewport
     )
@@ -76,6 +85,7 @@ init _ =
 
 type Message
     = ReceivedViewportInfo Viewport
+    | ReceivedMousePosition Coordinates
     | ScrolledMouseWheel Wheel.Event
 
 
@@ -84,6 +94,9 @@ update message model =
     case message of
         ReceivedViewportInfo { viewport } ->
             ( { model | viewport = Just { width = viewport.width, height = viewport.height } }, Cmd.none )
+
+        ReceivedMousePosition coords ->
+            ( { model | mousePosition = coords }, Cmd.none )
 
         ScrolledMouseWheel { deltaY } ->
             let
@@ -98,7 +111,13 @@ update message model =
 
 subscriptions : Model -> Sub Message
 subscriptions model =
-    Sub.none
+    -- WARNING: this might become expensive!
+    onMouseMove (Json.map ReceivedMousePosition mouseCoordinatesDecoder)
+
+
+mouseCoordinatesDecoder : Json.Decoder Coordinates
+mouseCoordinatesDecoder =
+    Json.map2 Coordinates (Json.field "screenX" Json.float) (Json.field "screenY" Json.float)
 
 
 
