@@ -2,8 +2,9 @@ module Main exposing (main)
 
 import Task
 import Html exposing (Html)
-import Svg exposing (Svg, svg)
-import Svg.Attributes exposing (viewBox, fill, width, height, cx, cy, r)
+import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
+import Svg exposing (Svg, svg, g)
+import Svg.Attributes exposing (viewBox, fill, width, height, cx, cy, r, transform)
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
 import Json.Decode as Json
@@ -22,13 +23,31 @@ main =
 {- MODEL -}
 
 
+systemSize =
+    10000
+
+
+minScale =
+    0.15
+
+
+maxScale =
+    2.25
+
+
 type alias Model =
-    { viewport : Maybe Viewport }
+    { viewport : Maybe { width : Float, height : Float }
+    , scale : Float
+    , focalPoint : { x : Float, y : Float }
+    }
 
 
 init : Json.Value -> ( Model, Cmd Message )
 init _ =
-    ( { viewport = Nothing }
+    ( { viewport = Nothing
+      , scale = 1
+      , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
+      }
     , Task.perform ReceivedViewportInfo getViewport
     )
 
@@ -39,13 +58,24 @@ init _ =
 
 type Message
     = ReceivedViewportInfo Viewport
+    | ScrolledMouseWheel Wheel.Event
 
 
 update : Message -> Model -> ( Model, Cmd Message )
 update message model =
     case message of
-        ReceivedViewportInfo viewport ->
-            ( { model | viewport = Just viewport }, Cmd.none )
+        ReceivedViewportInfo { viewport } ->
+            ( { model | viewport = Just { width = viewport.width, height = viewport.height } }, Cmd.none )
+
+        ScrolledMouseWheel { deltaY } ->
+            let
+                newScale =
+                    model.scale + (deltaY * 0.0001)
+            in
+                if newScale < minScale || newScale > maxScale then
+                    ( model, Cmd.none )
+                else
+                    ( { model | scale = newScale }, Cmd.none )
 
 
 subscriptions : Model -> Sub Message
@@ -73,14 +103,19 @@ playView model =
         Just viewport ->
             let
                 initX =
-                    (viewport.scene.width / 2) - (viewport.viewport.width / 2)
+                    model.focalPoint.x - (viewport.width / 2)
 
                 initY =
-                    (viewport.scene.height / 2) - (viewport.viewport.height / 2)
+                    model.focalPoint.y - (viewport.height / 2)
             in
-                svg [ viewBox ((String.fromFloat initX) ++ " " ++ (String.fromFloat initY) ++ " " ++ (String.fromFloat viewport.viewport.width) ++ " " ++ (String.fromFloat viewport.viewport.height)) ]
-                    [ Svg.rect [ fill "black", width "10000", height "10000" ] []
-                    , Svg.circle [ fill "yellow", r "100", cx (String.fromFloat (viewport.scene.width / 2)), cy (String.fromFloat (viewport.scene.height / 2)) ] []
+                svg
+                    [ viewBox ((String.fromFloat initX) ++ " " ++ (String.fromFloat initY) ++ " " ++ (String.fromFloat viewport.width) ++ " " ++ (String.fromFloat viewport.height))
+                    , onWheel ScrolledMouseWheel
+                    ]
+                    [ g [ transform ("translate(" ++ ((1 - model.scale) * model.focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - model.scale) * model.focalPoint.y |> String.fromFloat) ++ ") scale(" ++ (String.fromFloat model.scale) ++ ")") ]
+                        [ Svg.rect [ fill "black", width "10000", height "10000" ] []
+                        , Svg.circle [ fill "yellow", r "100", cx (String.fromFloat model.focalPoint.x), cy (String.fromFloat model.focalPoint.y) ] []
+                        ]
                     ]
 
 
