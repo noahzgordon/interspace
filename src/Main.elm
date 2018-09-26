@@ -10,7 +10,7 @@ import Svg.Styled exposing (Svg, svg, g, circle, rect)
 import Svg.Styled.Attributes exposing (viewBox, fill, width, height, cx, cy, r, transform, css, fromUnstyled)
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
-import Browser.Events exposing (onMouseMove)
+import Browser.Events
 import Json.Decode as Json
 import LineSegment2d as Line
 import Point2d as Point
@@ -48,7 +48,7 @@ orbits =
 
 
 minScale =
-    0.0015
+    0.01
 
 
 maxScale =
@@ -65,13 +65,24 @@ type alias Coordinates =
     }
 
 
+type alias Planet =
+    { position : Coordinates
+    , color : String
+    }
+
+
 type alias Model =
     { viewport : Maybe { width : Float, height : Float }
     , scale : Float
     , focalPoint : Coordinates
     , mousePosition : Coordinates
     , dragging : Bool
+    , planets : List Planet
     }
+
+
+centerPoint =
+    systemSize / 2
 
 
 init : Json.Value -> ( Model, Cmd Message )
@@ -81,6 +92,18 @@ init _ =
       , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
       , mousePosition = { x = systemSize / 2, y = systemSize / 2 }
       , dragging = False
+      , planets =
+            -- , { color = "black", position = { x = orbits.ceresBelt, y = systemSize / 2 } }
+            [ { color = "#B1ADAD", position = { x = centerPoint, y = centerPoint - orbits.mercury } }
+            , { color = "#DE5F25", position = { x = centerPoint, y = centerPoint - orbits.venus } }
+            , { color = "#182A61", position = { x = centerPoint, y = centerPoint - orbits.earth } }
+            , { color = "#B53B03", position = { x = centerPoint, y = centerPoint - orbits.mars } }
+            , { color = "#C1844D", position = { x = centerPoint, y = centerPoint - orbits.jupiter } }
+            , { color = "#C1B494", position = { x = centerPoint, y = centerPoint - orbits.saturn } }
+            , { color = "#D3F9FA", position = { x = centerPoint, y = centerPoint - orbits.uranus } }
+            , { color = "#3454DF", position = { x = centerPoint, y = centerPoint - orbits.neptune } }
+            , { color = "#E9E8D2", position = { x = centerPoint, y = centerPoint - orbits.pluto } }
+            ]
       }
     , Task.perform ReceivedViewportInfo getViewport
     )
@@ -96,6 +119,7 @@ type Message
     | ScrolledMouseWheel Wheel.Event
     | MouseButtonClicked
     | MouseButtonReleased
+    | TimePassed Float
 
 
 update : Message -> Model -> ( Model, Cmd Message )
@@ -168,10 +192,13 @@ update message model =
                     , Cmd.none
                     )
 
+        TimePassed delta ->
+            ( model, Cmd.none )
+
 
 subscriptions : Model -> Sub Message
 subscriptions model =
-    Sub.none
+    Browser.Events.onAnimationFrameDelta TimePassed
 
 
 mouseCoordinatesDecoder : Json.Decoder Coordinates
@@ -203,9 +230,6 @@ playView model =
 
                 initY =
                     model.focalPoint.y - (viewport.height / 2)
-
-                centerPoint =
-                    systemSize / 2
             in
                 svg
                     [ viewBox ((String.fromFloat initX) ++ " " ++ (String.fromFloat initY) ++ " " ++ (String.fromFloat viewport.width) ++ " " ++ (String.fromFloat viewport.height))
@@ -223,19 +247,18 @@ playView model =
                         ]
                     ]
                     [ g [ transform ("translate(" ++ ((1 - model.scale) * model.focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - model.scale) * model.focalPoint.y |> String.fromFloat) ++ ") scale(" ++ (String.fromFloat model.scale) ++ ")") ]
-                        [ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
-                        , circle [ fill "yellow", r "500", cx (String.fromFloat centerPoint), cy (String.fromFloat centerPoint) ] []
-                        , circle [ fill "#B1ADAD", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.mercury) ] []
-                        , circle [ fill "#DE5F25", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.venus) ] []
-                        , circle [ fill "#182A61", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.earth) ] []
-                        , circle [ fill "#B53B03", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.mars) ] []
-                        , circle [ fill "#C1844D", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.jupiter) ] []
-                        , circle [ fill "#C1B494", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.saturn) ] []
-                        , circle [ fill "#D3F9FA", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.uranus) ] []
-                        , circle [ fill "#3454DF", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.neptune) ] []
-                        , circle [ fill "#E9E8D2", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.pluto) ] []
-                        ]
+                        ([ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
+                           -- da sun
+                         , circle [ fill "yellow", r "500", cx (String.fromFloat centerPoint), cy (String.fromFloat centerPoint) ] []
+                         ]
+                            ++ List.map drawPlanet model.planets
+                        )
                     ]
+
+
+drawPlanet : Planet -> Svg Message
+drawPlanet planet =
+    circle [ fill planet.color, r "200", cx (String.fromFloat planet.position.x), cy (String.fromFloat planet.position.y) ] []
 
 
 loadingScreen : Html Message
