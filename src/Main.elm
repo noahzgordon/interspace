@@ -2,11 +2,12 @@ module Main exposing (main)
 
 import Tuple exposing (first, second)
 import Task
-import Html exposing (Html)
+import Html.Styled as Html exposing (Html)
 import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
 import Html.Events.Extra.Mouse as Mouse
-import Svg exposing (Svg, svg, g)
-import Svg.Attributes exposing (viewBox, fill, width, height, cx, cy, r, transform)
+import Css exposing (cursor, pointer, grabbing)
+import Svg.Styled exposing (Svg, svg, g, circle, rect)
+import Svg.Styled.Attributes exposing (viewBox, fill, width, height, cx, cy, r, transform, css, fromUnstyled)
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
 import Browser.Events exposing (onMouseMove)
@@ -69,6 +70,7 @@ type alias Model =
     , scale : Float
     , focalPoint : Coordinates
     , mousePosition : Coordinates
+    , dragging : Bool
     }
 
 
@@ -77,7 +79,8 @@ init _ =
     ( { viewport = Nothing
       , scale = 1
       , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
-      , mousePosition = { x = 0, y = 0 }
+      , mousePosition = { x = systemSize / 2, y = systemSize / 2 }
+      , dragging = False
       }
     , Task.perform ReceivedViewportInfo getViewport
     )
@@ -91,6 +94,8 @@ type Message
     = ReceivedViewportInfo Viewport
     | ReceivedMousePosition ( Float, Float )
     | ScrolledMouseWheel Wheel.Event
+    | MouseButtonClicked
+    | MouseButtonReleased
 
 
 update : Message -> Model -> ( Model, Cmd Message )
@@ -100,6 +105,7 @@ update message model =
             ( { model
                 | viewport = Just { width = viewport.width, height = viewport.height }
               }
+              -- get mouse pos?
             , Cmd.none
             )
 
@@ -107,17 +113,36 @@ update message model =
             -- set mouse pos in terms of global coord system, not viewport
             case model.viewport of
                 Just viewport ->
-                    ( { model
-                        | mousePosition =
-                            { x = ((xPos - (viewport.width / 2)) / model.scale) + model.focalPoint.x
-                            , y = ((yPos - (viewport.height / 2)) / model.scale) + model.focalPoint.y
-                            }
-                      }
-                    , Cmd.none
-                    )
+                    let
+                        ( newX, newY ) =
+                            ( ((xPos - (viewport.width / 2)) / model.scale) + model.focalPoint.x
+                            , ((yPos - (viewport.height / 2)) / model.scale) + model.focalPoint.y
+                            )
+                    in
+                        if model.dragging then
+                            ( { model
+                                | focalPoint =
+                                    { x = model.focalPoint.x + (model.mousePosition.x - newX)
+                                    , y = model.focalPoint.y + (model.mousePosition.y - newY)
+                                    }
+                              }
+                            , Cmd.none
+                            )
+                        else
+                            ( { model
+                                | mousePosition = { x = newX, y = newY }
+                              }
+                            , Cmd.none
+                            )
 
                 Nothing ->
                     ( model, Cmd.none )
+
+        MouseButtonClicked ->
+            ( { model | dragging = True }, Cmd.none )
+
+        MouseButtonReleased ->
+            ( { model | dragging = False }, Cmd.none )
 
         ScrolledMouseWheel { deltaY } ->
             let
@@ -161,7 +186,7 @@ mouseCoordinatesDecoder =
 view : Model -> Browser.Document Message
 view model =
     { title = "INTER <> SPACE"
-    , body = [ playView model ]
+    , body = [ Html.toUnstyled (playView model) ]
     }
 
 
@@ -184,21 +209,31 @@ playView model =
             in
                 svg
                     [ viewBox ((String.fromFloat initX) ++ " " ++ (String.fromFloat initY) ++ " " ++ (String.fromFloat viewport.width) ++ " " ++ (String.fromFloat viewport.height))
-                    , onWheel ScrolledMouseWheel
-                    , Mouse.onMove (.offsetPos >> ReceivedMousePosition)
+                    , onWheel ScrolledMouseWheel |> fromUnstyled
+                    , Mouse.onMove (.offsetPos >> ReceivedMousePosition) |> fromUnstyled
+                    , Mouse.onDown (always MouseButtonClicked) |> fromUnstyled
+                    , Mouse.onUp (always MouseButtonReleased) |> fromUnstyled
+                    , css
+                        [ cursor
+                            (if model.dragging then
+                                grabbing
+                             else
+                                pointer
+                            )
+                        ]
                     ]
                     [ g [ transform ("translate(" ++ ((1 - model.scale) * model.focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - model.scale) * model.focalPoint.y |> String.fromFloat) ++ ") scale(" ++ (String.fromFloat model.scale) ++ ")") ]
-                        [ Svg.rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
-                        , Svg.circle [ fill "yellow", r "500", cx (String.fromFloat centerPoint), cy (String.fromFloat centerPoint) ] []
-                        , Svg.circle [ fill "#B1ADAD", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.mercury) ] []
-                        , Svg.circle [ fill "#DE5F25", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.venus) ] []
-                        , Svg.circle [ fill "#182A61", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.earth) ] []
-                        , Svg.circle [ fill "#B53B03", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.mars) ] []
-                        , Svg.circle [ fill "#C1844D", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.jupiter) ] []
-                        , Svg.circle [ fill "#C1B494", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.saturn) ] []
-                        , Svg.circle [ fill "#D3F9FA", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.uranus) ] []
-                        , Svg.circle [ fill "#3454DF", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.neptune) ] []
-                        , Svg.circle [ fill "#E9E8D2", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.pluto) ] []
+                        [ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
+                        , circle [ fill "yellow", r "500", cx (String.fromFloat centerPoint), cy (String.fromFloat centerPoint) ] []
+                        , circle [ fill "#B1ADAD", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.mercury) ] []
+                        , circle [ fill "#DE5F25", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.venus) ] []
+                        , circle [ fill "#182A61", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.earth) ] []
+                        , circle [ fill "#B53B03", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.mars) ] []
+                        , circle [ fill "#C1844D", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.jupiter) ] []
+                        , circle [ fill "#C1B494", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.saturn) ] []
+                        , circle [ fill "#D3F9FA", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.uranus) ] []
+                        , circle [ fill "#3454DF", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.neptune) ] []
+                        , circle [ fill "#E9E8D2", r "200", cx (String.fromFloat centerPoint), cy (String.fromFloat <| centerPoint - orbits.pluto) ] []
                         ]
                     ]
 
