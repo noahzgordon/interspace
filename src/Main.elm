@@ -14,6 +14,7 @@ import Browser.Events
 import Json.Decode as Json
 import LineSegment2d as Line
 import Point2d as Point
+import Arc2d as Arc
 
 
 main =
@@ -68,6 +69,7 @@ type alias Coordinates =
 type alias Planet =
     { position : Coordinates
     , color : String
+    , orbitalPeriod : Float
     }
 
 
@@ -81,28 +83,55 @@ type alias Model =
     }
 
 
-centerPoint =
+center =
     systemSize / 2
 
 
 init : Json.Value -> ( Model, Cmd Message )
 init _ =
     ( { viewport = Nothing
-      , scale = 1
+      , scale = minScale
       , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
       , mousePosition = { x = systemSize / 2, y = systemSize / 2 }
       , dragging = False
       , planets =
             -- , { color = "black", position = { x = orbits.ceresBelt, y = systemSize / 2 } }
-            [ { color = "#B1ADAD", position = { x = centerPoint, y = centerPoint - orbits.mercury } }
-            , { color = "#DE5F25", position = { x = centerPoint, y = centerPoint - orbits.venus } }
-            , { color = "#182A61", position = { x = centerPoint, y = centerPoint - orbits.earth } }
-            , { color = "#B53B03", position = { x = centerPoint, y = centerPoint - orbits.mars } }
-            , { color = "#C1844D", position = { x = centerPoint, y = centerPoint - orbits.jupiter } }
-            , { color = "#C1B494", position = { x = centerPoint, y = centerPoint - orbits.saturn } }
-            , { color = "#D3F9FA", position = { x = centerPoint, y = centerPoint - orbits.uranus } }
-            , { color = "#3454DF", position = { x = centerPoint, y = centerPoint - orbits.neptune } }
-            , { color = "#E9E8D2", position = { x = centerPoint, y = centerPoint - orbits.pluto } }
+            [ { color = "#B1ADAD"
+              , position = { x = center, y = center - orbits.mercury }
+              , orbitalPeriod = 88
+              }
+            , { color = "#DE5F25"
+              , position = { x = center, y = center - orbits.venus }
+              , orbitalPeriod = 224.7
+              }
+            , { color = "#182A61"
+              , position = { x = center, y = center - orbits.earth }
+              , orbitalPeriod = 365.2
+              }
+            , { color = "#B53B03"
+              , position = { x = center, y = center - orbits.mars }
+              , orbitalPeriod = 687.0
+              }
+            , { color = "#C1844D"
+              , position = { x = center, y = center - orbits.jupiter }
+              , orbitalPeriod = 4331
+              }
+            , { color = "#C1B494"
+              , position = { x = center, y = center - orbits.saturn }
+              , orbitalPeriod = 10747
+              }
+            , { color = "#D3F9FA"
+              , position = { x = center, y = center - orbits.uranus }
+              , orbitalPeriod = 30589
+              }
+            , { color = "#3454DF"
+              , position = { x = center, y = center - orbits.neptune }
+              , orbitalPeriod = 59800
+              }
+            , { color = "#E9E8D2"
+              , position = { x = center, y = center - orbits.pluto }
+              , orbitalPeriod = 90560
+              }
             ]
       }
     , Task.perform ReceivedViewportInfo getViewport
@@ -193,7 +222,32 @@ update message model =
                     )
 
         TimePassed delta ->
-            ( model, Cmd.none )
+            ( { model | planets = List.map (movePlanet delta) model.planets }
+            , Cmd.none
+            )
+
+
+movePlanet : Float -> Planet -> Planet
+movePlanet time planet =
+    let
+        centerPoint =
+            Point.fromCoordinates ( center, center )
+
+        positionPoint =
+            Point.fromCoordinates ( planet.position.x, planet.position.y )
+
+        arc =
+            Arc.sweptAround centerPoint (time * 10 * (1 / planet.orbitalPeriod / 365.2)) positionPoint
+
+        newPositionPoint =
+            Arc.endPoint arc
+    in
+        { planet
+            | position =
+                { x = Point.xCoordinate newPositionPoint
+                , y = Point.yCoordinate newPositionPoint
+                }
+        }
 
 
 subscriptions : Model -> Sub Message
@@ -249,7 +303,7 @@ playView model =
                     [ g [ transform ("translate(" ++ ((1 - model.scale) * model.focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - model.scale) * model.focalPoint.y |> String.fromFloat) ++ ") scale(" ++ (String.fromFloat model.scale) ++ ")") ]
                         ([ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
                            -- da sun
-                         , circle [ fill "yellow", r "500", cx (String.fromFloat centerPoint), cy (String.fromFloat centerPoint) ] []
+                         , circle [ fill "yellow", r "500", cx (String.fromFloat center), cy (String.fromFloat center) ] []
                          ]
                             ++ List.map drawPlanet model.planets
                         )
