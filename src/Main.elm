@@ -7,6 +7,7 @@ import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
 import Html.Events.Extra.Mouse as Mouse
 import Css exposing (cursor, pointer, grabbing)
 import Svg.Styled exposing (Svg, svg, g, circle, rect)
+import Svg.Styled.Lazy exposing (lazy, lazy2, lazy3)
 import Svg.Styled.Attributes exposing (viewBox, fill, width, height, cx, cy, r, transform, css, fromUnstyled)
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
@@ -49,7 +50,7 @@ orbits =
 
 
 minScale =
-    0.01
+    0.005
 
 
 maxScale =
@@ -73,6 +74,12 @@ type alias Planet =
     }
 
 
+type alias Rectangle =
+    { width : Float
+    , height : Float
+    }
+
+
 type alias Model =
     { viewport : Maybe { width : Float, height : Float }
     , scale : Float
@@ -90,7 +97,7 @@ center =
 init : Json.Value -> ( Model, Cmd Message )
 init _ =
     ( { viewport = Nothing
-      , scale = minScale
+      , scale = 0.01
       , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
       , mousePosition = { x = systemSize / 2, y = systemSize / 2 }
       , dragging = False
@@ -302,17 +309,72 @@ playView model =
                     ]
                     [ g [ transform ("translate(" ++ ((1 - model.scale) * model.focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - model.scale) * model.focalPoint.y |> String.fromFloat) ++ ") scale(" ++ (String.fromFloat model.scale) ++ ")") ]
                         ([ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
+                           -- da stars
+                         , lazy3 drawStarGroup viewport model.scale model.focalPoint
                            -- da sun
                          , circle [ fill "yellow", r "500", cx (String.fromFloat center), cy (String.fromFloat center) ] []
+                         , g [] (List.map drawPlanet model.planets)
                          ]
-                            ++ List.map drawPlanet model.planets
                         )
                     ]
+
+
+drawStarGroup : Rectangle -> Float -> Coordinates -> Svg Message
+drawStarGroup viewport scale focalPoint =
+    let
+        starScale =
+            0.00001
+    in
+        g
+            [ transform ("translate(" ++ ((1 - scale) * focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - scale) * focalPoint.y |> String.fromFloat) ++ ") scale(" ++ (String.fromFloat starScale) ++ ")") ]
+            (List.map drawStar (starPositions viewport scale focalPoint))
 
 
 drawPlanet : Planet -> Svg Message
 drawPlanet planet =
     circle [ fill planet.color, r "200", cx (String.fromFloat planet.position.x), cy (String.fromFloat planet.position.y) ] []
+
+
+drawStar : ( Int, Int ) -> Svg Message
+drawStar ( x, y ) =
+    circle [ fill "white", r "100000", cx (String.fromInt x), cy (String.fromInt y) ] []
+
+
+starPositions : Rectangle -> Float -> Coordinates -> List ( Int, Int )
+starPositions viewport scale focalPoint =
+    let
+        minX =
+            round (focalPoint.x - ((viewport.width / 2) / scale))
+
+        minY =
+            round (focalPoint.y - ((viewport.height / 2) / scale))
+
+        maxX =
+            round (focalPoint.x + ((viewport.width / 2) / scale))
+
+        maxY =
+            round (focalPoint.y + ((viewport.height / 2) / scale))
+
+        xPositions =
+            List.range minX maxX
+                |> List.filter (\pos -> modBy 20000 pos == 0)
+
+        yPositions =
+            List.range minY maxY
+                |> List.filter (\pos -> modBy 20000 pos == 0)
+    in
+        List.foldr
+            (\xPos outerList ->
+                List.foldr
+                    (\yPos innerList ->
+                        List.append innerList [ ( xPos, yPos ) ]
+                    )
+                    outerList
+                    yPositions
+            )
+            []
+            xPositions
+            |> Debug.log "positions"
 
 
 loadingScreen : Html Message
