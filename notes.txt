@@ -1,0 +1,6 @@
+-- star generation
+
+poisson disk sampling
+perlin noise
+simplex
+GDC: creating space dust / junk

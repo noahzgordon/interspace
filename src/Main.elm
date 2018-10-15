@@ -1,21 +1,21 @@
 module Main exposing (main)
 
-import Tuple exposing (first, second)
-import Task
-import Html.Styled as Html exposing (Html)
-import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
-import Html.Events.Extra.Mouse as Mouse
-import Css exposing (cursor, pointer, grabbing)
-import Svg.Styled exposing (Svg, svg, g, circle, rect)
-import Svg.Styled.Lazy exposing (lazy, lazy2, lazy3)
-import Svg.Styled.Attributes exposing (viewBox, fill, width, height, cx, cy, r, transform, css, fromUnstyled)
+import Arc2d as Arc
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
 import Browser.Events
+import Css exposing (cursor, grabbing, pointer)
+import Html.Events.Extra.Mouse as Mouse
+import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
+import Html.Styled as Html exposing (Html)
 import Json.Decode as Json
 import LineSegment2d as Line
 import Point2d as Point
-import Arc2d as Arc
+import Svg.Styled exposing (Svg, circle, g, rect, svg)
+import Svg.Styled.Attributes exposing (css, cx, cy, fill, fromUnstyled, height, r, transform, viewBox, width)
+import Svg.Styled.Lazy exposing (lazy, lazy2, lazy3)
+import Task
+import Tuple exposing (first, second)
 
 
 main =
@@ -86,6 +86,7 @@ type alias Model =
     , focalPoint : Coordinates
     , mousePosition : Coordinates
     , dragging : Bool
+    , shiftPressed : Bool
     , planets : List Planet
     }
 
@@ -101,6 +102,7 @@ init _ =
       , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
       , mousePosition = { x = systemSize / 2, y = systemSize / 2 }
       , dragging = False
+      , shiftPressed = False
       , planets =
             -- , { color = "black", position = { x = orbits.ceresBelt, y = systemSize / 2 } }
             [ { color = "#B1ADAD"
@@ -152,6 +154,8 @@ init _ =
 type Message
     = ReceivedViewportInfo Viewport
     | ReceivedMousePosition ( Float, Float )
+    | ReceivedKeyDown Key
+    | ReceivedKeyUp Key
     | ScrolledMouseWheel Wheel.Event
     | MouseButtonClicked
     | MouseButtonReleased
@@ -179,23 +183,40 @@ update message model =
                             , ((yPos - (viewport.height / 2)) / model.scale) + model.focalPoint.y
                             )
                     in
-                        if model.dragging then
-                            ( { model
-                                | focalPoint =
-                                    { x = model.focalPoint.x + (model.mousePosition.x - newX)
-                                    , y = model.focalPoint.y + (model.mousePosition.y - newY)
-                                    }
-                              }
-                            , Cmd.none
-                            )
-                        else
-                            ( { model
-                                | mousePosition = { x = newX, y = newY }
-                              }
-                            , Cmd.none
-                            )
+                    if model.dragging then
+                        ( { model
+                            | focalPoint =
+                                { x = model.focalPoint.x + (model.mousePosition.x - newX)
+                                , y = model.focalPoint.y + (model.mousePosition.y - newY)
+                                }
+                          }
+                        , Cmd.none
+                        )
+
+                    else
+                        ( { model
+                            | mousePosition = { x = newX, y = newY }
+                          }
+                        , Cmd.none
+                        )
 
                 Nothing ->
+                    ( model, Cmd.none )
+
+        ReceivedKeyDown key ->
+            case key of
+                Shift ->
+                    ( { model | shiftPressed = True }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        ReceivedKeyUp key ->
+            case key of
+                Shift ->
+                    ( { model | shiftPressed = False }, Cmd.none )
+
+                _ ->
                     ( model, Cmd.none )
 
         MouseButtonClicked ->
@@ -215,18 +236,20 @@ update message model =
                             (Point.fromCoordinates ( model.focalPoint.x, model.focalPoint.y ))
                             (Point.fromCoordinates ( model.mousePosition.x, model.mousePosition.y ))
                             (-0.0005 * deltaY)
+
                     else
                         Point.fromCoordinates ( model.focalPoint.x, model.focalPoint.y )
             in
-                if newScale < minScale || newScale > maxScale then
-                    ( model, Cmd.none )
-                else
-                    ( { model
-                        | scale = newScale
-                        , focalPoint = { x = Point.xCoordinate newFocalPoint, y = Point.yCoordinate newFocalPoint }
-                      }
-                    , Cmd.none
-                    )
+            if newScale < minScale || newScale > maxScale then
+                ( model, Cmd.none )
+
+            else
+                ( { model
+                    | scale = newScale
+                    , focalPoint = { x = Point.xCoordinate newFocalPoint, y = Point.yCoordinate newFocalPoint }
+                  }
+                , Cmd.none
+                )
 
         TimePassed delta ->
             ( { model | planets = List.map (movePlanet delta) model.planets }
@@ -249,17 +272,25 @@ movePlanet time planet =
         newPositionPoint =
             Arc.endPoint arc
     in
-        { planet
-            | position =
-                { x = Point.xCoordinate newPositionPoint
-                , y = Point.yCoordinate newPositionPoint
-                }
-        }
+    { planet
+        | position =
+            { x = Point.xCoordinate newPositionPoint
+            , y = Point.yCoordinate newPositionPoint
+            }
+    }
 
 
 subscriptions : Model -> Sub Message
 subscriptions model =
-    Browser.Events.onAnimationFrameDelta TimePassed
+    Sub.batch
+        [ if model.shiftPressed then
+            Browser.Events.onAnimationFrameDelta TimePassed
+
+          else
+            Sub.none
+        , Browser.Events.onKeyDown (keyDecoder |> Json.map ReceivedKeyDown)
+        , Browser.Events.onKeyUp (keyDecoder |> Json.map ReceivedKeyUp)
+        ]
 
 
 mouseCoordinatesDecoder : Json.Decoder Coordinates
@@ -292,42 +323,49 @@ playView model =
                 initY =
                     model.focalPoint.y - (viewport.height / 2)
             in
-                svg
-                    [ viewBox ((String.fromFloat initX) ++ " " ++ (String.fromFloat initY) ++ " " ++ (String.fromFloat viewport.width) ++ " " ++ (String.fromFloat viewport.height))
-                    , onWheel ScrolledMouseWheel |> fromUnstyled
-                    , Mouse.onMove (.offsetPos >> ReceivedMousePosition) |> fromUnstyled
-                    , Mouse.onDown (always MouseButtonClicked) |> fromUnstyled
-                    , Mouse.onUp (always MouseButtonReleased) |> fromUnstyled
-                    , css
-                        [ cursor
-                            (if model.dragging then
-                                grabbing
-                             else
-                                pointer
-                            )
-                        ]
-                    ]
-                    [ g [ transform ("translate(" ++ ((1 - model.scale) * model.focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - model.scale) * model.focalPoint.y |> String.fromFloat) ++ ") scale(" ++ (String.fromFloat model.scale) ++ ")") ]
-                        ([ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
-                           -- da stars
-                         , lazy3 drawStarGroup viewport model.scale model.focalPoint
-                           -- da sun
-                         , circle [ fill "yellow", r "500", cx (String.fromFloat center), cy (String.fromFloat center) ] []
-                         , g [] (List.map drawPlanet model.planets)
-                         ]
+            svg
+                [ viewBox (String.fromFloat initX ++ " " ++ String.fromFloat initY ++ " " ++ String.fromFloat viewport.width ++ " " ++ String.fromFloat viewport.height)
+                , onWheel ScrolledMouseWheel |> fromUnstyled
+                , Mouse.onMove (.offsetPos >> ReceivedMousePosition) |> fromUnstyled
+                , Mouse.onDown (always MouseButtonClicked) |> fromUnstyled
+                , Mouse.onUp (always MouseButtonReleased) |> fromUnstyled
+                , css
+                    [ cursor
+                        (if model.dragging then
+                            grabbing
+
+                         else
+                            pointer
                         )
                     ]
+                ]
+                [ g [ transform ("translate(" ++ ((1 - model.scale) * model.focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - model.scale) * model.focalPoint.y |> String.fromFloat) ++ ") scale(" ++ String.fromFloat model.scale ++ ")") ]
+                    [ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
+
+                    -- da stars
+                    , lazy3 drawStarGroup viewport model.scale model.focalPoint
+
+                    -- da sun
+                    , circle [ fill "yellow", r "1000", cx (String.fromFloat center), cy (String.fromFloat center) ] []
+                    , g [] (List.map drawPlanet model.planets)
+                    ]
+                ]
 
 
 drawStarGroup : Rectangle -> Float -> Coordinates -> Svg Message
 drawStarGroup viewport scale focalPoint =
     let
         starScale =
-            0.00001
+            0.01
     in
-        g
-            [ transform ("translate(" ++ ((1 - scale) * focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - scale) * focalPoint.y |> String.fromFloat) ++ ") scale(" ++ (String.fromFloat starScale) ++ ")") ]
-            (List.map drawStar (starPositions viewport scale focalPoint))
+    g
+        [ transform ("translate(" ++ ((1 - starScale) * focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - starScale) * focalPoint.y |> String.fromFloat) ++ ") scale(" ++ String.fromFloat starScale ++ ")") ]
+        (List.map drawStar (starPositions viewport starScale focalPoint))
+
+
+drawStar : ( Int, Int ) -> Svg Message
+drawStar ( x, y ) =
+    circle [ fill "white", r "500", cx (String.fromInt x), cy (String.fromInt y) ] []
 
 
 drawPlanet : Planet -> Svg Message
@@ -335,48 +373,50 @@ drawPlanet planet =
     circle [ fill planet.color, r "200", cx (String.fromFloat planet.position.x), cy (String.fromFloat planet.position.y) ] []
 
 
-drawStar : ( Int, Int ) -> Svg Message
-drawStar ( x, y ) =
-    circle [ fill "white", r "100000", cx (String.fromInt x), cy (String.fromInt y) ] []
-
-
 starPositions : Rectangle -> Float -> Coordinates -> List ( Int, Int )
 starPositions viewport scale focalPoint =
     let
-        minX =
-            round (focalPoint.x - ((viewport.width / 2) / scale))
-
-        minY =
-            round (focalPoint.y - ((viewport.height / 2) / scale))
-
-        maxX =
-            round (focalPoint.x + ((viewport.width / 2) / scale))
-
-        maxY =
-            round (focalPoint.y + ((viewport.height / 2) / scale))
-
         xPositions =
-            List.range minX maxX
-                |> List.filter (\pos -> modBy 20000 pos == 0)
+            List.range -15 15
+                |> List.map ((*) 2000000)
 
         yPositions =
-            List.range minY maxY
-                |> List.filter (\pos -> modBy 20000 pos == 0)
+            List.range -15 15
+                |> List.map ((*) 2000000)
     in
-        List.foldr
-            (\xPos outerList ->
-                List.foldr
-                    (\yPos innerList ->
-                        List.append innerList [ ( xPos, yPos ) ]
-                    )
-                    outerList
-                    yPositions
-            )
-            []
-            xPositions
-            |> Debug.log "positions"
+    List.foldr
+        (\xPos outerList ->
+            List.foldr
+                (\yPos innerList ->
+                    List.append innerList [ ( xPos, yPos ) ]
+                )
+                outerList
+                yPositions
+        )
+        []
+        xPositions
 
 
 loadingScreen : Html Message
 loadingScreen =
     Html.text "loading..."
+
+
+type Key
+    = Shift
+    | Other
+
+
+keyDecoder : Json.Decoder Key
+keyDecoder =
+    Json.map toKey (Json.field "key" Json.string)
+
+
+toKey : String -> Key
+toKey string =
+    case string of
+        "Shift" ->
+            Shift
+
+        _ ->
+            Other
