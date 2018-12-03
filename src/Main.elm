@@ -5,7 +5,7 @@ import Browser
 import Browser.Dom exposing (Viewport, getViewport)
 import Browser.Events
 import Coordinates exposing (Coordinates)
-import Css exposing (cursor, grabbing, pointer)
+import Css exposing (cursor, grab, grabbing, pointer)
 import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
 import Html.Styled as Html exposing (Html)
@@ -14,8 +14,8 @@ import LineSegment2d as Line
 import List.Extra as List
 import Planets exposing (Planet, PlanetId(..))
 import Point2d as Point
-import Svg.Styled exposing (Svg, circle, g, rect, svg)
-import Svg.Styled.Attributes exposing (css, cx, cy, fill, fromUnstyled, height, r, transform, viewBox, width)
+import Svg.Styled exposing (Svg, circle, g, polygon, rect, svg)
+import Svg.Styled.Attributes exposing (css, cx, cy, fill, fromUnstyled, height, points, r, transform, viewBox, width, x, y)
 import Svg.Styled.Lazy exposing (lazy, lazy2, lazy3)
 import Task
 import Tuple exposing (first, second)
@@ -374,7 +374,7 @@ playView model =
                             grabbing
 
                          else
-                            pointer
+                            grab
                         )
                     ]
                 ]
@@ -386,8 +386,10 @@ playView model =
 
                     -- da sun
                     , circle [ fill "yellow", r "1000", cx (String.fromFloat center), cy (String.fromFloat center) ] []
-                    , g [] (List.map drawPlanet planetList)
-                    , circle [ fill "white", cx (String.fromFloat (Debug.log "playerX" playerPosition.x)), cy (String.fromFloat playerPosition.y), r "500" ] []
+                    , svg [ x (playerPosition.x - 300 |> String.fromFloat), y (playerPosition.y - 900 |> String.fromFloat), width "600", height "600" ]
+                        [ polygon [ fill "red", points "210,0 210,390 90,390 300,600 510,390 390,390 390,0" ] []
+                        ]
+                    , g [] (List.map (drawPlanet model.playerLocation) planetList)
                     ]
                 ]
 
@@ -408,9 +410,24 @@ drawStar ( x, y ) =
     circle [ fill "white", r "500", cx (String.fromInt x), cy (String.fromInt y) ] []
 
 
-drawPlanet : ( Planet, Coordinates ) -> Svg Message
-drawPlanet ( planet, position ) =
-    circle [ fill planet.color, r "200", cx (String.fromFloat position.x), cy (String.fromFloat position.y) ] []
+drawPlanet : PlanetId -> ( Planet, Coordinates ) -> Svg Message
+drawPlanet playerLocation ( planet, position ) =
+    circle
+        [ fill planet.color
+        , r "200"
+        , cx (String.fromFloat position.x)
+        , cy (String.fromFloat position.y)
+        , css
+            [ cursor
+                (if playerLocation == planet.id then
+                    pointer
+
+                 else
+                    grab
+                )
+            ]
+        ]
+        []
 
 
 starPositions : Rectangle -> Float -> Coordinates -> List ( Int, Int )
