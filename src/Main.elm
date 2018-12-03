@@ -5,19 +5,18 @@ import Browser
 import Browser.Dom exposing (Viewport, getViewport)
 import Browser.Events
 import Coordinates exposing (Coordinates)
-import Css exposing (cursor, grab, grabbing, pointer)
+import Html exposing (Html)
 import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
-import Html.Styled as Html exposing (Html)
 import Json.Decode as Json
 import LineSegment2d as Line
 import List.Extra as List
 import Planets exposing (Planet, PlanetId(..))
 import Point2d as Point
-import Svg.Styled exposing (Svg, circle, g, line, polygon, rect, svg)
-import Svg.Styled.Attributes exposing (..)
-import Svg.Styled.Events exposing (onClick)
-import Svg.Styled.Lazy exposing (lazy, lazy2, lazy3)
+import Svg exposing (Svg, circle, g, line, polygon, rect, svg)
+import Svg.Attributes exposing (..)
+import Svg.Events exposing (onClick)
+import Svg.Lazy exposing (lazy, lazy2, lazy3)
 import Task
 import Tuple exposing (first, second)
 
@@ -298,7 +297,7 @@ mouseCoordinatesDecoder =
 view : Model -> Browser.Document Message
 view model =
     { title = "INTER <> SPACE"
-    , body = [ Html.toUnstyled (playView model) ]
+    , body = [ playView model ]
     }
 
 
@@ -368,19 +367,17 @@ playView model =
             in
             svg
                 [ viewBox (String.fromFloat initX ++ " " ++ String.fromFloat initY ++ " " ++ String.fromFloat viewport.width ++ " " ++ String.fromFloat viewport.height)
-                , onWheel ScrolledMouseWheel |> fromUnstyled
-                , Mouse.onMove (.offsetPos >> ReceivedMousePosition) |> fromUnstyled
-                , Mouse.onDown (always MouseButtonClicked) |> fromUnstyled
-                , Mouse.onUp (always MouseButtonReleased) |> fromUnstyled
-                , css
-                    [ Css.cursor
-                        (if model.dragging then
-                            grabbing
+                , onWheel ScrolledMouseWheel
+                , Mouse.onMove (.offsetPos >> ReceivedMousePosition)
+                , Mouse.onDown (always MouseButtonClicked)
+                , Mouse.onUp (always MouseButtonReleased)
+                , cursor
+                    (if model.dragging then
+                        "grabbing"
 
-                         else
-                            grab
-                        )
-                    ]
+                     else
+                        "grab"
+                    )
                 ]
                 [ g [ transform ("translate(" ++ ((1 - model.scale) * model.focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - model.scale) * model.focalPoint.y |> String.fromFloat) ++ ") scale(" ++ String.fromFloat model.scale ++ ")") ]
                     [ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
@@ -435,15 +432,13 @@ drawPlanet playerLocation ( planet, position ) =
         , r "200"
         , cx (String.fromFloat position.x)
         , cy (String.fromFloat position.y)
-        , css
-            [ Css.cursor
-                (if playerLocation == planet.id then
-                    pointer
+        , cursor
+            (if playerLocation == planet.id then
+                "pointer"
 
-                 else
-                    grab
-                )
-            ]
+             else
+                "grab"
+            )
         , onClick (PlanetClicked planet.id)
         ]
         []
