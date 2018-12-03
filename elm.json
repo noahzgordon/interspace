@@ -12,22 +12,25 @@
             "elm/json": "1.0.0",
             "elm/svg": "1.0.0",
             "elm-community/list-extra": "8.0.0",
+            "elm-community/maybe-extra": "5.0.0",
             "ianmackenzie/elm-geometry": "1.2.1",
+            "ianmackenzie/elm-units": "1.0.0",
             "mpizenberg/elm-pointer-events": "3.0.0"
         },
         "indirect": {
-            "Skinney/murmur3": "2.0.8",
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
             "elm/virtual-dom": "1.0.0",
             "ianmackenzie/elm-float-extra": "1.0.1",
             "ianmackenzie/elm-interval": "1.0.1",
-            "ianmackenzie/elm-triangular-mesh": "1.0.2",
-            "rtfeldman/elm-hex": "1.0.0"
+            "ianmackenzie/elm-triangular-mesh": "1.0.2"
         }
     },
     "test-dependencies": {
         "direct": {},
-        "indirect": {}
+        "indirect": {
+            "Skinney/murmur3": "2.0.8",
+            "rtfeldman/elm-hex": "1.0.0"
+        }
     }
 }

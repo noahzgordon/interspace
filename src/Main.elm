@@ -5,14 +5,19 @@ import Browser
 import Browser.Dom exposing (Viewport, getViewport)
 import Browser.Events
 import Coordinates exposing (Coordinates)
+import Duration
 import Html exposing (Html)
 import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
 import Json.Decode as Json
+import Length
 import LineSegment2d as Line
 import List.Extra as List
+import Maybe.Extra as Maybe
 import Planets exposing (Planet, PlanetId(..))
 import Point2d as Point
+import Quantity
+import Speed
 import Svg exposing (Svg, circle, g, line, polygon, rect, svg)
 import Svg.Attributes exposing (..)
 import Svg.Events exposing (onClick)
@@ -38,6 +43,10 @@ systemSize =
     6000000000 / 5000
 
 
+shipSpeed =
+    Speed.kilometersPerHour 20000
+
+
 minScale =
     0.005
 
@@ -56,27 +65,30 @@ type alias Rectangle =
     }
 
 
+type alias PlanetPositions =
+    { mercury : Coordinates
+    , venus : Coordinates
+    , earth : Coordinates
+    , mars : Coordinates
+    , ceres : Coordinates
+    , vesta : Coordinates
+    , jupiter : Coordinates
+    , saturn : Coordinates
+    , uranus : Coordinates
+    , neptune : Coordinates
+    , pluto : Coordinates
+    }
+
+
 type alias Model =
     { viewport : Maybe { width : Float, height : Float }
     , scale : Float
     , focalPoint : Coordinates
     , mousePosition : Coordinates
     , dragging : Bool
-    , plotting : Bool
     , shiftPressed : Bool
-    , planetPositions :
-        { mercury : Coordinates
-        , venus : Coordinates
-        , earth : Coordinates
-        , mars : Coordinates
-        , ceres : Coordinates
-        , vesta : Coordinates
-        , jupiter : Coordinates
-        , saturn : Coordinates
-        , uranus : Coordinates
-        , neptune : Coordinates
-        , pluto : Coordinates
-        }
+    , planetPositions : PlanetPositions
+    , plottingPositions : Maybe PlanetPositions
     , playerLocation : PlanetId
     }
 
@@ -96,7 +108,6 @@ init _ =
       , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
       , mousePosition = { x = systemSize / 2, y = systemSize / 2 }
       , dragging = False
-      , plotting = False
       , shiftPressed = False
       , planetPositions =
             { mercury = positionPlanet Planets.mercury
@@ -111,6 +122,7 @@ init _ =
             , neptune = positionPlanet Planets.neptune
             , pluto = positionPlanet Planets.pluto
             }
+      , plottingPositions = Nothing
       , playerLocation = Planets.Earth
       }
     , Task.perform ReceivedViewportInfo getViewport
@@ -165,11 +177,59 @@ update message model =
                         )
 
                     else
-                        ( { model
-                            | mousePosition = { x = newX, y = newY }
-                          }
-                        , Cmd.none
-                        )
+                        case model.plottingPositions of
+                            Just plottingPositions ->
+                                let
+                                    playerPosition =
+                                        getPosition model.playerLocation model.planetPositions
+
+                                    playerPoint =
+                                        Point.fromCoordinates ( playerPosition.x, playerPosition.y )
+
+                                    oldMousePoint =
+                                        Point.fromCoordinates ( model.mousePosition.x, model.mousePosition.y )
+
+                                    newMousePoint =
+                                        Point.fromCoordinates ( newX, newY )
+
+                                    oldDistance =
+                                        Point.distanceFrom playerPoint oldMousePoint
+
+                                    newDistance =
+                                        Point.distanceFrom playerPoint newMousePoint
+
+                                    daysAdjustment =
+                                        ((newDistance - oldDistance) * 5000)
+                                            |> Length.kilometers
+                                            |> Quantity.at_ shipSpeed
+                                            |> Duration.inDays
+                                in
+                                ( { model
+                                    | mousePosition = { x = newX, y = newY }
+                                    , plottingPositions =
+                                        Just
+                                            { mercury = movePlanet daysAdjustment Mercury plottingPositions.mercury
+                                            , venus = movePlanet daysAdjustment Venus plottingPositions.venus
+                                            , earth = movePlanet daysAdjustment Earth plottingPositions.earth
+                                            , mars = movePlanet daysAdjustment Mars plottingPositions.mars
+                                            , ceres = movePlanet daysAdjustment Ceres plottingPositions.ceres
+                                            , vesta = movePlanet daysAdjustment Vesta plottingPositions.vesta
+                                            , jupiter = movePlanet daysAdjustment Jupiter plottingPositions.jupiter
+                                            , saturn = movePlanet daysAdjustment Saturn plottingPositions.saturn
+                                            , uranus = movePlanet daysAdjustment Uranus plottingPositions.uranus
+                                            , neptune = movePlanet daysAdjustment Neptune plottingPositions.neptune
+                                            , pluto = movePlanet daysAdjustment Pluto plottingPositions.pluto
+                                            }
+                                  }
+                                , Cmd.none
+                                )
+
+                            Nothing ->
+                                ( { model
+                                    | mousePosition = { x = newX, y = newY }
+                                  }
+                                , Cmd.none
+                                )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -223,19 +283,24 @@ update message model =
                 )
 
         TimePassed delta ->
+            let
+                -- 1 second = 10 days
+                daysPassed =
+                    delta / 100
+            in
             ( { model
                 | planetPositions =
-                    { mercury = movePlanet delta Mercury model.planetPositions.mercury
-                    , venus = movePlanet delta Venus model.planetPositions.venus
-                    , earth = movePlanet delta Earth model.planetPositions.earth
-                    , mars = movePlanet delta Mars model.planetPositions.mars
-                    , ceres = movePlanet delta Ceres model.planetPositions.ceres
-                    , vesta = movePlanet delta Vesta model.planetPositions.vesta
-                    , jupiter = movePlanet delta Jupiter model.planetPositions.jupiter
-                    , saturn = movePlanet delta Saturn model.planetPositions.saturn
-                    , uranus = movePlanet delta Uranus model.planetPositions.uranus
-                    , neptune = movePlanet delta Neptune model.planetPositions.neptune
-                    , pluto = movePlanet delta Pluto model.planetPositions.pluto
+                    { mercury = movePlanet daysPassed Mercury model.planetPositions.mercury
+                    , venus = movePlanet daysPassed Venus model.planetPositions.venus
+                    , earth = movePlanet daysPassed Earth model.planetPositions.earth
+                    , mars = movePlanet daysPassed Mars model.planetPositions.mars
+                    , ceres = movePlanet daysPassed Ceres model.planetPositions.ceres
+                    , vesta = movePlanet daysPassed Vesta model.planetPositions.vesta
+                    , jupiter = movePlanet daysPassed Jupiter model.planetPositions.jupiter
+                    , saturn = movePlanet daysPassed Saturn model.planetPositions.saturn
+                    , uranus = movePlanet daysPassed Uranus model.planetPositions.uranus
+                    , neptune = movePlanet daysPassed Neptune model.planetPositions.neptune
+                    , pluto = movePlanet daysPassed Pluto model.planetPositions.pluto
                     }
               }
             , Cmd.none
@@ -243,14 +308,14 @@ update message model =
 
         PlanetClicked planetId ->
             if planetId == model.playerLocation then
-                ( { model | plotting = True }, Cmd.none )
+                ( { model | plottingPositions = Just model.planetPositions }, Cmd.none )
 
             else
                 ( model, Cmd.none )
 
 
 movePlanet : Float -> PlanetId -> Coordinates -> Coordinates
-movePlanet time planetId position =
+movePlanet days planetId position =
     let
         centerPoint =
             Point.fromCoordinates ( center, center )
@@ -262,7 +327,7 @@ movePlanet time planetId position =
             (Planets.get planetId).orbitalPeriod
 
         arc =
-            Arc.sweptAround centerPoint (time * 10 * (1 / orbitalPeriod / 365.2)) positionPoint
+            Arc.sweptAround centerPoint (days / orbitalPeriod) positionPoint
 
         newPositionPoint =
             Arc.endPoint arc
@@ -301,6 +366,43 @@ view model =
     }
 
 
+getPosition : PlanetId -> PlanetPositions -> Coordinates
+getPosition location positions =
+    case location of
+        Mercury ->
+            positions.mercury
+
+        Venus ->
+            positions.venus
+
+        Earth ->
+            positions.earth
+
+        Mars ->
+            positions.mars
+
+        Ceres ->
+            positions.ceres
+
+        Vesta ->
+            positions.vesta
+
+        Jupiter ->
+            positions.jupiter
+
+        Saturn ->
+            positions.saturn
+
+        Uranus ->
+            positions.uranus
+
+        Neptune ->
+            positions.neptune
+
+        Pluto ->
+            positions.pluto
+
+
 playView : Model -> Html Message
 playView model =
     case model.viewport of
@@ -317,53 +419,42 @@ playView model =
 
                 planetList : List ( Planet, Coordinates )
                 planetList =
-                    [ ( Planets.get Mercury, model.planetPositions.mercury )
-                    , ( Planets.get Venus, model.planetPositions.venus )
-                    , ( Planets.get Earth, model.planetPositions.earth )
-                    , ( Planets.get Mars, model.planetPositions.mars )
-                    , ( Planets.get Ceres, model.planetPositions.ceres )
-                    , ( Planets.get Vesta, model.planetPositions.vesta )
-                    , ( Planets.get Jupiter, model.planetPositions.jupiter )
-                    , ( Planets.get Saturn, model.planetPositions.saturn )
-                    , ( Planets.get Uranus, model.planetPositions.uranus )
-                    , ( Planets.get Neptune, model.planetPositions.neptune )
-                    , ( Planets.get Pluto, model.planetPositions.pluto )
-                    ]
+                    case model.plottingPositions of
+                        Just positions ->
+                            [ ( Planets.get Mercury, positions.mercury )
+                            , ( Planets.get Venus, positions.venus )
+                            , ( Planets.get Earth, positions.earth )
+                            , ( Planets.get Mars, positions.mars )
+                            , ( Planets.get Ceres, positions.ceres )
+                            , ( Planets.get Vesta, positions.vesta )
+                            , ( Planets.get Jupiter, positions.jupiter )
+                            , ( Planets.get Saturn, positions.saturn )
+                            , ( Planets.get Uranus, positions.uranus )
+                            , ( Planets.get Neptune, positions.neptune )
+                            , ( Planets.get Pluto, positions.pluto )
+                            ]
+
+                        Nothing ->
+                            [ ( Planets.get Mercury, model.planetPositions.mercury )
+                            , ( Planets.get Venus, model.planetPositions.venus )
+                            , ( Planets.get Earth, model.planetPositions.earth )
+                            , ( Planets.get Mars, model.planetPositions.mars )
+                            , ( Planets.get Ceres, model.planetPositions.ceres )
+                            , ( Planets.get Vesta, model.planetPositions.vesta )
+                            , ( Planets.get Jupiter, model.planetPositions.jupiter )
+                            , ( Planets.get Saturn, model.planetPositions.saturn )
+                            , ( Planets.get Uranus, model.planetPositions.uranus )
+                            , ( Planets.get Neptune, model.planetPositions.neptune )
+                            , ( Planets.get Pluto, model.planetPositions.pluto )
+                            ]
 
                 playerPosition =
-                    case model.playerLocation of
-                        Mercury ->
-                            model.planetPositions.mercury
+                    case model.plottingPositions of
+                        Just plottingPositions ->
+                            getPosition model.playerLocation plottingPositions
 
-                        Venus ->
-                            model.planetPositions.venus
-
-                        Earth ->
-                            model.planetPositions.earth
-
-                        Mars ->
-                            model.planetPositions.mars
-
-                        Ceres ->
-                            model.planetPositions.ceres
-
-                        Vesta ->
-                            model.planetPositions.vesta
-
-                        Jupiter ->
-                            model.planetPositions.jupiter
-
-                        Saturn ->
-                            model.planetPositions.saturn
-
-                        Uranus ->
-                            model.planetPositions.uranus
-
-                        Neptune ->
-                            model.planetPositions.neptune
-
-                        Pluto ->
-                            model.planetPositions.pluto
+                        Nothing ->
+                            getPosition model.playerLocation model.planetPositions
             in
             svg
                 [ viewBox (String.fromFloat initX ++ " " ++ String.fromFloat initY ++ " " ++ String.fromFloat viewport.width ++ " " ++ String.fromFloat viewport.height)
@@ -390,20 +481,21 @@ playView model =
                     , svg [ x (playerPosition.x - 300 |> String.fromFloat), y (playerPosition.y - 900 |> String.fromFloat), width "600", height "600" ]
                         [ polygon [ fill "red", points "210,0 210,390 90,390 300,600 510,390 390,390 390,0" ] []
                         ]
-                    , if model.plotting then
-                        line
-                            [ x1 (String.fromFloat playerPosition.x)
-                            , y1 (String.fromFloat playerPosition.y)
-                            , x2 (String.fromFloat model.mousePosition.x)
-                            , y2 (String.fromFloat model.mousePosition.y)
-                            , stroke "white"
-                            , strokeWidth "50"
-                            , strokeDasharray "200"
-                            ]
-                            []
+                    , case model.plottingPositions of
+                        Just _ ->
+                            line
+                                [ x1 (String.fromFloat playerPosition.x)
+                                , y1 (String.fromFloat playerPosition.y)
+                                , x2 (String.fromFloat model.mousePosition.x)
+                                , y2 (String.fromFloat model.mousePosition.y)
+                                , stroke "white"
+                                , strokeWidth "50"
+                                , strokeDasharray "200"
+                                ]
+                                []
 
-                      else
-                        Html.text ""
+                        Nothing ->
+                            Html.text ""
                     , g [] (List.map (drawPlanet model.playerLocation) planetList)
                     ]
                 ]
