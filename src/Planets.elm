@@ -1,4 +1,4 @@
-module Planets exposing (Planet, PlanetId(..), ceres, earth, get, jupiter, mars, mercury, neptune, pallas, pluto, saturn, uranus, venus, vesta)
+module Planets exposing (Planet, PlanetId(..), ceres, earth, get, jupiter, mars, mercury, neptune, pluto, saturn, uranus, venus, vesta)
 
 import Coordinates exposing (Coordinates)
 
@@ -9,7 +9,6 @@ type PlanetId
     | Earth
     | Mars
     | Ceres
-    | Pallas
     | Vesta
     | Jupiter
     | Saturn
@@ -120,15 +119,6 @@ ceres =
     }
 
 
-pallas : Planet
-pallas =
-    { color = "#AAAAAA"
-    , orbitalPeriod = 1686
-    , orbitalRadius = 414804976 / 5000
-    , id = Pallas
-    }
-
-
 vesta : Planet
 vesta =
     { color = "#AAAAAA"
@@ -155,9 +145,6 @@ get id =
 
         Ceres ->
             ceres
-
-        Pallas ->
-            pallas
 
         Vesta ->
             vesta

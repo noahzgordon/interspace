@@ -69,7 +69,6 @@ type alias Model =
         , earth : Coordinates
         , mars : Coordinates
         , ceres : Coordinates
-        , pallas : Coordinates
         , vesta : Coordinates
         , jupiter : Coordinates
         , saturn : Coordinates
@@ -103,7 +102,6 @@ init _ =
             , earth = positionPlanet Planets.earth
             , mars = positionPlanet Planets.mars
             , ceres = positionPlanet Planets.ceres
-            , pallas = positionPlanet Planets.pallas
             , vesta = positionPlanet Planets.vesta
             , jupiter = positionPlanet Planets.jupiter
             , saturn = positionPlanet Planets.saturn
@@ -229,7 +227,6 @@ update message model =
                     , earth = movePlanet delta Earth model.planetPositions.earth
                     , mars = movePlanet delta Mars model.planetPositions.mars
                     , ceres = movePlanet delta Ceres model.planetPositions.ceres
-                    , pallas = movePlanet delta Pallas model.planetPositions.pallas
                     , vesta = movePlanet delta Vesta model.planetPositions.vesta
                     , jupiter = movePlanet delta Jupiter model.planetPositions.jupiter
                     , saturn = movePlanet delta Saturn model.planetPositions.saturn
@@ -315,7 +312,6 @@ playView model =
                     , ( Planets.get Earth, model.planetPositions.earth )
                     , ( Planets.get Mars, model.planetPositions.mars )
                     , ( Planets.get Ceres, model.planetPositions.ceres )
-                    , ( Planets.get Pallas, model.planetPositions.pallas )
                     , ( Planets.get Vesta, model.planetPositions.vesta )
                     , ( Planets.get Jupiter, model.planetPositions.jupiter )
                     , ( Planets.get Saturn, model.planetPositions.saturn )
@@ -340,9 +336,6 @@ playView model =
 
                         Ceres ->
                             model.planetPositions.ceres
-
-                        Pallas ->
-                            model.planetPositions.pallas
 
                         Vesta ->
                             model.planetPositions.vesta
