@@ -14,8 +14,9 @@ import LineSegment2d as Line
 import List.Extra as List
 import Planets exposing (Planet, PlanetId(..))
 import Point2d as Point
-import Svg.Styled exposing (Svg, circle, g, polygon, rect, svg)
-import Svg.Styled.Attributes exposing (css, cx, cy, fill, fromUnstyled, height, points, r, transform, viewBox, width, x, y)
+import Svg.Styled exposing (Svg, circle, g, line, polygon, rect, svg)
+import Svg.Styled.Attributes exposing (..)
+import Svg.Styled.Events exposing (onClick)
 import Svg.Styled.Lazy exposing (lazy, lazy2, lazy3)
 import Task
 import Tuple exposing (first, second)
@@ -62,6 +63,7 @@ type alias Model =
     , focalPoint : Coordinates
     , mousePosition : Coordinates
     , dragging : Bool
+    , plotting : Bool
     , shiftPressed : Bool
     , planetPositions :
         { mercury : Coordinates
@@ -95,6 +97,7 @@ init _ =
       , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
       , mousePosition = { x = systemSize / 2, y = systemSize / 2 }
       , dragging = False
+      , plotting = False
       , shiftPressed = False
       , planetPositions =
             { mercury = positionPlanet Planets.mercury
@@ -127,6 +130,7 @@ type Message
     | ScrolledMouseWheel Wheel.Event
     | MouseButtonClicked
     | MouseButtonReleased
+    | PlanetClicked PlanetId
     | TimePassed Float
 
 
@@ -237,6 +241,13 @@ update message model =
               }
             , Cmd.none
             )
+
+        PlanetClicked planetId ->
+            if planetId == model.playerLocation then
+                ( { model | plotting = True }, Cmd.none )
+
+            else
+                ( model, Cmd.none )
 
 
 movePlanet : Float -> PlanetId -> Coordinates -> Coordinates
@@ -362,7 +373,7 @@ playView model =
                 , Mouse.onDown (always MouseButtonClicked) |> fromUnstyled
                 , Mouse.onUp (always MouseButtonReleased) |> fromUnstyled
                 , css
-                    [ cursor
+                    [ Css.cursor
                         (if model.dragging then
                             grabbing
 
@@ -382,6 +393,20 @@ playView model =
                     , svg [ x (playerPosition.x - 300 |> String.fromFloat), y (playerPosition.y - 900 |> String.fromFloat), width "600", height "600" ]
                         [ polygon [ fill "red", points "210,0 210,390 90,390 300,600 510,390 390,390 390,0" ] []
                         ]
+                    , if model.plotting then
+                        line
+                            [ x1 (String.fromFloat playerPosition.x)
+                            , y1 (String.fromFloat playerPosition.y)
+                            , x2 (String.fromFloat model.mousePosition.x)
+                            , y2 (String.fromFloat model.mousePosition.y)
+                            , stroke "white"
+                            , strokeWidth "50"
+                            , strokeDasharray "200"
+                            ]
+                            []
+
+                      else
+                        Html.text ""
                     , g [] (List.map (drawPlanet model.playerLocation) planetList)
                     ]
                 ]
@@ -411,7 +436,7 @@ drawPlanet playerLocation ( planet, position ) =
         , cx (String.fromFloat position.x)
         , cy (String.fromFloat position.y)
         , css
-            [ cursor
+            [ Css.cursor
                 (if playerLocation == planet.id then
                     pointer
 
@@ -419,6 +444,7 @@ drawPlanet playerLocation ( planet, position ) =
                     grab
                 )
             ]
+        , onClick (PlanetClicked planet.id)
         ]
         []
 
