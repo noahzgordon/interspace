@@ -4,12 +4,15 @@ import Arc2d as Arc
 import Browser
 import Browser.Dom exposing (Viewport, getViewport)
 import Browser.Events
+import Coordinates exposing (Coordinates)
 import Css exposing (cursor, grabbing, pointer)
 import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
 import Html.Styled as Html exposing (Html)
 import Json.Decode as Json
 import LineSegment2d as Line
+import List.Extra as List
+import Planets exposing (Planet, PlanetId(..))
 import Point2d as Point
 import Svg.Styled exposing (Svg, circle, g, rect, svg)
 import Svg.Styled.Attributes exposing (css, cx, cy, fill, fromUnstyled, height, r, transform, viewBox, width)
@@ -35,20 +38,6 @@ systemSize =
     6000000000 / 5000
 
 
-orbits =
-    { mercury = 57910000 / 5000
-    , venus = 108200000 / 5000
-    , earth = 149600000 / 5000
-    , mars = 227900000 / 5000
-    , ceresBelt = 413800000 / 5000
-    , jupiter = 778600000 / 5000
-    , saturn = 1433000000 / 5000
-    , uranus = 2877000000 / 5000
-    , neptune = 4503000000 / 5000
-    , pluto = 5874000000 / 5000
-    }
-
-
 minScale =
     0.005
 
@@ -59,19 +48,6 @@ maxScale =
 
 
 {- MODEL -}
-
-
-type alias Coordinates =
-    { x : Float
-    , y : Float
-    }
-
-
-type alias Planet =
-    { position : Coordinates
-    , color : String
-    , orbitalPeriod : Float
-    }
 
 
 type alias Rectangle =
@@ -87,7 +63,21 @@ type alias Model =
     , mousePosition : Coordinates
     , dragging : Bool
     , shiftPressed : Bool
-    , planets : List Planet
+    , planetPositions :
+        { mercury : Coordinates
+        , venus : Coordinates
+        , earth : Coordinates
+        , mars : Coordinates
+        , ceres : Coordinates
+        , pallas : Coordinates
+        , vesta : Coordinates
+        , jupiter : Coordinates
+        , saturn : Coordinates
+        , uranus : Coordinates
+        , neptune : Coordinates
+        , pluto : Coordinates
+        }
+    , playerLocation : PlanetId
     }
 
 
@@ -97,51 +87,31 @@ center =
 
 init : Json.Value -> ( Model, Cmd Message )
 init _ =
+    let
+        positionPlanet planet =
+            { x = center, y = center - planet.orbitalRadius }
+    in
     ( { viewport = Nothing
       , scale = 0.01
       , focalPoint = { x = systemSize / 2, y = systemSize / 2 }
       , mousePosition = { x = systemSize / 2, y = systemSize / 2 }
       , dragging = False
       , shiftPressed = False
-      , planets =
-            -- , { color = "black", position = { x = orbits.ceresBelt, y = systemSize / 2 } }
-            [ { color = "#B1ADAD"
-              , position = { x = center, y = center - orbits.mercury }
-              , orbitalPeriod = 88
-              }
-            , { color = "#DE5F25"
-              , position = { x = center, y = center - orbits.venus }
-              , orbitalPeriod = 224.7
-              }
-            , { color = "#182A61"
-              , position = { x = center, y = center - orbits.earth }
-              , orbitalPeriod = 365.2
-              }
-            , { color = "#B53B03"
-              , position = { x = center, y = center - orbits.mars }
-              , orbitalPeriod = 687.0
-              }
-            , { color = "#C1844D"
-              , position = { x = center, y = center - orbits.jupiter }
-              , orbitalPeriod = 4331
-              }
-            , { color = "#C1B494"
-              , position = { x = center, y = center - orbits.saturn }
-              , orbitalPeriod = 10747
-              }
-            , { color = "#D3F9FA"
-              , position = { x = center, y = center - orbits.uranus }
-              , orbitalPeriod = 30589
-              }
-            , { color = "#3454DF"
-              , position = { x = center, y = center - orbits.neptune }
-              , orbitalPeriod = 59800
-              }
-            , { color = "#E9E8D2"
-              , position = { x = center, y = center - orbits.pluto }
-              , orbitalPeriod = 90560
-              }
-            ]
+      , planetPositions =
+            { mercury = positionPlanet Planets.mercury
+            , venus = positionPlanet Planets.venus
+            , earth = positionPlanet Planets.earth
+            , mars = positionPlanet Planets.mars
+            , ceres = positionPlanet Planets.ceres
+            , pallas = positionPlanet Planets.pallas
+            , vesta = positionPlanet Planets.vesta
+            , jupiter = positionPlanet Planets.jupiter
+            , saturn = positionPlanet Planets.saturn
+            , uranus = positionPlanet Planets.uranus
+            , neptune = positionPlanet Planets.neptune
+            , pluto = positionPlanet Planets.pluto
+            }
+      , playerLocation = Planets.Earth
       }
     , Task.perform ReceivedViewportInfo getViewport
     )
@@ -252,31 +222,46 @@ update message model =
                 )
 
         TimePassed delta ->
-            ( { model | planets = List.map (movePlanet delta) model.planets }
+            ( { model
+                | planetPositions =
+                    { mercury = movePlanet delta Mercury model.planetPositions.mercury
+                    , venus = movePlanet delta Venus model.planetPositions.venus
+                    , earth = movePlanet delta Earth model.planetPositions.earth
+                    , mars = movePlanet delta Mars model.planetPositions.mars
+                    , ceres = movePlanet delta Ceres model.planetPositions.ceres
+                    , pallas = movePlanet delta Pallas model.planetPositions.pallas
+                    , vesta = movePlanet delta Vesta model.planetPositions.vesta
+                    , jupiter = movePlanet delta Jupiter model.planetPositions.jupiter
+                    , saturn = movePlanet delta Saturn model.planetPositions.saturn
+                    , uranus = movePlanet delta Uranus model.planetPositions.uranus
+                    , neptune = movePlanet delta Neptune model.planetPositions.neptune
+                    , pluto = movePlanet delta Pluto model.planetPositions.pluto
+                    }
+              }
             , Cmd.none
             )
 
 
-movePlanet : Float -> Planet -> Planet
-movePlanet time planet =
+movePlanet : Float -> PlanetId -> Coordinates -> Coordinates
+movePlanet time planetId position =
     let
         centerPoint =
             Point.fromCoordinates ( center, center )
 
         positionPoint =
-            Point.fromCoordinates ( planet.position.x, planet.position.y )
+            Point.fromCoordinates ( position.x, position.y )
+
+        orbitalPeriod =
+            (Planets.get planetId).orbitalPeriod
 
         arc =
-            Arc.sweptAround centerPoint (time * 10 * (1 / planet.orbitalPeriod / 365.2)) positionPoint
+            Arc.sweptAround centerPoint (time * 10 * (1 / orbitalPeriod / 365.2)) positionPoint
 
         newPositionPoint =
             Arc.endPoint arc
     in
-    { planet
-        | position =
-            { x = Point.xCoordinate newPositionPoint
-            , y = Point.yCoordinate newPositionPoint
-            }
+    { x = Point.xCoordinate newPositionPoint
+    , y = Point.yCoordinate newPositionPoint
     }
 
 
@@ -322,6 +307,60 @@ playView model =
 
                 initY =
                     model.focalPoint.y - (viewport.height / 2)
+
+                planetList : List ( Planet, Coordinates )
+                planetList =
+                    [ ( Planets.get Mercury, model.planetPositions.mercury )
+                    , ( Planets.get Venus, model.planetPositions.venus )
+                    , ( Planets.get Earth, model.planetPositions.earth )
+                    , ( Planets.get Mars, model.planetPositions.mars )
+                    , ( Planets.get Ceres, model.planetPositions.ceres )
+                    , ( Planets.get Pallas, model.planetPositions.pallas )
+                    , ( Planets.get Vesta, model.planetPositions.vesta )
+                    , ( Planets.get Jupiter, model.planetPositions.jupiter )
+                    , ( Planets.get Saturn, model.planetPositions.saturn )
+                    , ( Planets.get Uranus, model.planetPositions.uranus )
+                    , ( Planets.get Neptune, model.planetPositions.neptune )
+                    , ( Planets.get Pluto, model.planetPositions.pluto )
+                    ]
+
+                playerPosition =
+                    case model.playerLocation of
+                        Mercury ->
+                            model.planetPositions.mercury
+
+                        Venus ->
+                            model.planetPositions.venus
+
+                        Earth ->
+                            model.planetPositions.earth
+
+                        Mars ->
+                            model.planetPositions.mars
+
+                        Ceres ->
+                            model.planetPositions.ceres
+
+                        Pallas ->
+                            model.planetPositions.pallas
+
+                        Vesta ->
+                            model.planetPositions.vesta
+
+                        Jupiter ->
+                            model.planetPositions.jupiter
+
+                        Saturn ->
+                            model.planetPositions.saturn
+
+                        Uranus ->
+                            model.planetPositions.uranus
+
+                        Neptune ->
+                            model.planetPositions.neptune
+
+                        Pluto ->
+                            model.planetPositions.pluto
             in
             svg
                 [ viewBox (String.fromFloat initX ++ " " ++ String.fromFloat initY ++ " " ++ String.fromFloat viewport.width ++ " " ++ String.fromFloat viewport.height)
@@ -347,7 +386,8 @@ playView model =
 
                     -- da sun
                     , circle [ fill "yellow", r "1000", cx (String.fromFloat center), cy (String.fromFloat center) ] []
-                    , g [] (List.map drawPlanet model.planets)
+                    , g [] (List.map drawPlanet planetList)
+                    , circle [ fill "white", cx (String.fromFloat (Debug.log "playerX" playerPosition.x)), cy (String.fromFloat playerPosition.y), r "500" ] []
                     ]
                 ]
 
@@ -368,9 +408,9 @@ drawStar ( x, y ) =
     circle [ fill "white", r "500", cx (String.fromInt x), cy (String.fromInt y) ] []
 
 
-drawPlanet : Planet -> Svg Message
-drawPlanet planet =
-    circle [ fill planet.color, r "200", cx (String.fromFloat planet.position.x), cy (String.fromFloat planet.position.y) ] []
+drawPlanet : ( Planet, Coordinates ) -> Svg Message
+drawPlanet ( planet, position ) =
+    circle [ fill planet.color, r "200", cx (String.fromFloat position.x), cy (String.fromFloat position.y) ] []
 
 
 starPositions : Rectangle -> Float -> Coordinates -> List ( Int, Int )
