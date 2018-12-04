@@ -244,6 +244,9 @@ update message model =
                 Shift ->
                     ( { model | shiftPressed = True }, Cmd.none )
 
+                Escape ->
+                    ( { model | plottingPositions = Nothing }, Cmd.none )
+
                 _ ->
                     ( model, Cmd.none )
 
@@ -588,6 +591,7 @@ loadingScreen =
 
 type Key
     = Shift
+    | Escape
     | Other
 
 
@@ -601,6 +605,9 @@ toKey string =
     case string of
         "Shift" ->
             Shift
+
+        "Escape" ->
+            Escape
 
         _ ->
             Other
