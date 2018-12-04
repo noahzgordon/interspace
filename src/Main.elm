@@ -512,19 +512,6 @@ playView model =
                         , cy (String.fromFloat center)
                         ]
                         []
-                    , svg
-                        [ x (playerPosition.x - 300 |> String.fromFloat)
-                        , y (playerPosition.y - 900 |> String.fromFloat)
-                        , width "600"
-                        , height "600"
-                        ]
-                        [ polygon
-                            [ fill "red"
-                            , points "210,0 210,390 90,390 300,600 510,390 390,390 390,0"
-                            , reverseScale { x = 300, y = 300 } 0.3 model.scale
-                            ]
-                            []
-                        ]
                     , case model.plottingPositions of
                         Just _ ->
                             line
@@ -572,22 +559,44 @@ reverseScale position threshold scale =
 
 drawPlanet : Float -> PlanetId -> ( Planet, Coordinates ) -> Svg Message
 drawPlanet scale playerLocation ( planet, position ) =
-    circle
-        [ fill planet.color
-        , r "200"
-        , cx (String.fromFloat position.x)
-        , cy (String.fromFloat position.y)
-        , cursor
-            (if playerLocation == planet.id then
-                "pointer"
-
-             else
-                "grab"
-            )
-        , onClick (PlanetClicked planet.id)
-        , reverseScale position 0.03 scale
+    svg
+        [ x (position.x - 2000 |> String.fromFloat)
+        , y (position.y - 2000 |> String.fromFloat)
+        , width "4000"
+        , height "4000"
+        , overflow "visible"
         ]
-        []
+        [ g [ reverseScale { x = 2000, y = 2000 } 0.03 scale ]
+            [ svg
+                [ x "1700"
+                , y "1100"
+                , width "600"
+                , height "600"
+                , visibility
+                    (if playerLocation == planet.id then
+                        "visible"
+
+                     else
+                        "hidden"
+                    )
+                ]
+                [ polygon
+                    [ fill "red"
+                    , points "210,0 210,390 90,390 300,600 510,390 390,390 390,0"
+                    ]
+                    []
+                ]
+            , circle
+                [ fill planet.color
+                , r "200"
+                , cx "2000"
+                , cy "2000"
+                , cursor "pointer"
+                , onClick (PlanetClicked planet.id)
+                ]
+                []
+            ]
+        ]
 
 
 starPositions : Rectangle -> Float -> Coordinates -> List ( Int, Int )
