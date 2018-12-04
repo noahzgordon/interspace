@@ -168,8 +168,8 @@ update message model =
                 Just viewport ->
                     let
                         ( newX, newY ) =
-                            ( ((xPos - (viewport.width / 2)) / model.scale) + model.focalPoint.x
-                            , ((yPos - (viewport.height / 2)) / model.scale) + model.focalPoint.y
+                            ( ((xPos + 10 - (viewport.width / 2)) / model.scale) + model.focalPoint.x
+                            , ((yPos + 10 - (viewport.height / 2)) / model.scale) + model.focalPoint.y
                             )
                     in
                     if model.dragging then
@@ -363,7 +363,7 @@ movePlanet days planetId position =
 subscriptions : Model -> Sub Message
 subscriptions model =
     Sub.batch
-        [ if model.shiftPressed then
+        [ if model.shiftPressed && Maybe.isNothing model.plottingPositions then
             Browser.Events.onAnimationFrameDelta TimePassed
 
           else
