@@ -55,6 +55,10 @@ maxScale =
     2.25
 
 
+daysPassedAtStart =
+    10000
+
+
 
 {- MODEL -}
 
@@ -102,6 +106,7 @@ init _ =
     let
         positionPlanet planet =
             { x = center, y = center - planet.orbitalRadius }
+                |> movePlanet daysPassedAtStart planet.id
     in
     ( { viewport = Nothing
       , scale = 0.01
@@ -449,12 +454,13 @@ playView model =
                             ]
 
                 playerPosition =
-                    case model.plottingPositions of
-                        Just plottingPositions ->
-                            getPosition model.playerLocation plottingPositions
+                    getPosition model.playerLocation model.planetPositions
 
-                        Nothing ->
-                            getPosition model.playerLocation model.planetPositions
+                planetScale =
+                    clamp 1 maxScale model.scale
+
+                scaleTransform focalPoint scale =
+                    transform ("translate(" ++ ((1 - scale) * focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - scale) * focalPoint.y |> String.fromFloat) ++ ") scale(" ++ String.fromFloat scale ++ ")")
             in
             svg
                 [ viewBox (String.fromFloat initX ++ " " ++ String.fromFloat initY ++ " " ++ String.fromFloat viewport.width ++ " " ++ String.fromFloat viewport.height)
@@ -470,7 +476,8 @@ playView model =
                         "grab"
                     )
                 ]
-                [ g [ transform ("translate(" ++ ((1 - model.scale) * model.focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - model.scale) * model.focalPoint.y |> String.fromFloat) ++ ") scale(" ++ String.fromFloat model.scale ++ ")") ]
+                -- background elements
+                [ g [ scaleTransform model.focalPoint model.scale ]
                     [ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
 
                     -- da stars
@@ -514,7 +521,7 @@ drawStarGroup viewport scale focalPoint =
 
 drawStar : ( Int, Int ) -> Svg Message
 drawStar ( x, y ) =
-    circle [ fill "white", r "500", cx (String.fromInt x), cy (String.fromInt y) ] []
+    circle [ fill "#BBB", r "50", cx (String.fromInt x), cy (String.fromInt y) ] []
 
 
 drawPlanet : PlanetId -> ( Planet, Coordinates ) -> Svg Message
