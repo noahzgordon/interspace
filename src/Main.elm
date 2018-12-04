@@ -313,10 +313,24 @@ update message model =
 
         PlanetClicked planetId ->
             if planetId == model.playerLocation then
-                ( { model | plottingPositions = Just model.planetPositions }, Cmd.none )
+                if Maybe.isJust model.plottingPositions then
+                    ( { model | plottingPositions = Nothing }, Cmd.none )
+
+                else
+                    ( { model | plottingPositions = Just model.planetPositions }, Cmd.none )
 
             else
-                ( model, Cmd.none )
+                case model.plottingPositions of
+                    Just positions ->
+                        ( { model
+                            | planetPositions = positions
+                            , playerLocation = planetId
+                          }
+                        , Cmd.none
+                        )
+
+                    Nothing ->
+                        ( model, Cmd.none )
 
 
 movePlanet : Float -> PlanetId -> Coordinates -> Coordinates
