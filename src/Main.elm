@@ -7,6 +7,7 @@ import Browser.Events
 import Coordinates exposing (Coordinates)
 import Duration
 import Html exposing (Html)
+import Html.Attributes exposing (attribute)
 import Html.Events.Extra.Mouse as Mouse
 import Html.Events.Extra.Wheel as Wheel exposing (onWheel)
 import Json.Decode as Json
@@ -425,6 +426,11 @@ getPosition location positions =
             positions.pluto
 
 
+scaleTransform : Coordinates -> Float -> Svg.Attribute msg
+scaleTransform focalPoint scale =
+    transform ("translate(" ++ ((1 - scale) * focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - scale) * focalPoint.y |> String.fromFloat) ++ ") scale(" ++ String.fromFloat scale ++ ")")
+
+
 playView : Model -> Html Message
 playView model =
     case model.viewport of
@@ -474,10 +480,7 @@ playView model =
                     getPosition model.playerLocation model.planetPositions
 
                 planetScale =
-                    clamp 1 maxScale model.scale
-
-                scaleTransform focalPoint scale =
-                    transform ("translate(" ++ ((1 - scale) * focalPoint.x |> String.fromFloat) ++ "," ++ ((1 - scale) * focalPoint.y |> String.fromFloat) ++ ") scale(" ++ String.fromFloat scale ++ ")")
+                    clamp 0.05 maxScale model.scale
             in
             svg
                 [ viewBox (String.fromFloat initX ++ " " ++ String.fromFloat initY ++ " " ++ String.fromFloat viewport.width ++ " " ++ String.fromFloat viewport.height)
@@ -501,9 +504,26 @@ playView model =
                     , lazy3 drawStarGroup viewport model.scale model.focalPoint
 
                     -- da sun
-                    , circle [ fill "yellow", r "1000", cx (String.fromFloat center), cy (String.fromFloat center) ] []
-                    , svg [ x (playerPosition.x - 300 |> String.fromFloat), y (playerPosition.y - 900 |> String.fromFloat), width "600", height "600" ]
-                        [ polygon [ fill "red", points "210,0 210,390 90,390 300,600 510,390 390,390 390,0" ] []
+                    , circle
+                        [ reverseScale { x = center, y = center } 0.015 model.scale
+                        , fill "yellow"
+                        , r "1000"
+                        , cx (String.fromFloat center)
+                        , cy (String.fromFloat center)
+                        ]
+                        []
+                    , svg
+                        [ x (playerPosition.x - 300 |> String.fromFloat)
+                        , y (playerPosition.y - 900 |> String.fromFloat)
+                        , width "600"
+                        , height "600"
+                        ]
+                        [ polygon
+                            [ fill "red"
+                            , points "210,0 210,390 90,390 300,600 510,390 390,390 390,0"
+                            , reverseScale { x = 300, y = 300 } 0.3 model.scale
+                            ]
+                            []
                         ]
                     , case model.plottingPositions of
                         Just _ ->
@@ -520,7 +540,7 @@ playView model =
 
                         Nothing ->
                             Html.text ""
-                    , g [] (List.map (drawPlanet model.playerLocation) planetList)
+                    , g [] (List.map (drawPlanet model.scale model.playerLocation) planetList)
                     ]
                 ]
 
@@ -541,8 +561,17 @@ drawStar ( x, y ) =
     circle [ fill "#BBB", r "50", cx (String.fromInt x), cy (String.fromInt y) ] []
 
 
-drawPlanet : PlanetId -> ( Planet, Coordinates ) -> Svg Message
-drawPlanet playerLocation ( planet, position ) =
+reverseScale : Coordinates -> Float -> Float -> Svg.Attribute msg
+reverseScale position threshold scale =
+    if scale <= threshold then
+        scaleTransform position (1 / (scale / threshold))
+
+    else
+        attribute "" ""
+
+
+drawPlanet : Float -> PlanetId -> ( Planet, Coordinates ) -> Svg Message
+drawPlanet scale playerLocation ( planet, position ) =
     circle
         [ fill planet.color
         , r "200"
@@ -556,6 +585,7 @@ drawPlanet playerLocation ( planet, position ) =
                 "grab"
             )
         , onClick (PlanetClicked planet.id)
+        , reverseScale position 0.03 scale
         ]
         []
 
