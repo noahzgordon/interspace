@@ -1,0 +1,19 @@
+body {
+  overflow: hidden;
+}
+
+.planet-wrapper {
+  top: 0;
+  left: 0;
+  position: relative;
+}
+
+.planet-label {
+  position: absolute;
+  visibility: hidden;
+  font-size: 400px;
+}
+
+.planet-wrapper:hover .planet-label {
+  visibility: visible;
+}

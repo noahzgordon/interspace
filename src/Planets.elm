@@ -1,4 +1,4 @@
-module Planets exposing (Planet, PlanetId(..), ceres, earth, get, jupiter, mars, mercury, neptune, pluto, saturn, uranus, venus, vesta)
+module Planets exposing (Planet, PlanetId(..), ceres, earth, get, jupiter, mars, mercury, name, neptune, pluto, saturn, uranus, venus, vesta)
 
 import Coordinates exposing (Coordinates)
 
@@ -23,6 +23,43 @@ type alias Planet =
     , orbitalRadius : Float
     , id : PlanetId
     }
+
+
+name : PlanetId -> String
+name id =
+    case id of
+        Mercury ->
+            "Mercury"
+
+        Venus ->
+            "Venus"
+
+        Earth ->
+            "Earth"
+
+        Mars ->
+            "Mars"
+
+        Ceres ->
+            "Ceres"
+
+        Vesta ->
+            "4 Vesta"
+
+        Jupiter ->
+            "Jupiter"
+
+        Saturn ->
+            "Saturn"
+
+        Uranus ->
+            "Uranus"
+
+        Neptune ->
+            "Neptune"
+
+        Pluto ->
+            "Pluto"
 
 
 mercury : Planet

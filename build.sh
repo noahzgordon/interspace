@@ -1,1 +1,1 @@
-elm make src/Main.elm  --debug --output=index.html
+elm make src/Main.elm  --debug --output=elm.js

@@ -19,7 +19,7 @@ import Planets exposing (Planet, PlanetId(..))
 import Point2d as Point
 import Quantity
 import Speed
-import Svg exposing (Svg, circle, g, line, polygon, rect, svg)
+import Svg exposing (Svg, circle, g, line, polygon, rect, svg, text, text_)
 import Svg.Attributes exposing (..)
 import Svg.Events exposing (onClick)
 import Svg.Lazy exposing (lazy, lazy2, lazy3)
@@ -293,9 +293,9 @@ update message model =
 
         TimePassed delta ->
             let
-                -- 1 second = 10 days
+                -- 1 second = 100 days
                 daysPassed =
-                    delta / 100
+                    delta / 10
             in
             ( { model
                 | planetPositions =
@@ -329,6 +329,7 @@ update message model =
                         ( { model
                             | planetPositions = positions
                             , playerLocation = planetId
+                            , plottingPositions = Nothing
                           }
                         , Cmd.none
                         )
@@ -483,7 +484,8 @@ playView model =
                     clamp 0.05 maxScale model.scale
             in
             svg
-                [ viewBox (String.fromFloat initX ++ " " ++ String.fromFloat initY ++ " " ++ String.fromFloat viewport.width ++ " " ++ String.fromFloat viewport.height)
+                [ class "play-view"
+                , viewBox (String.fromFloat initX ++ " " ++ String.fromFloat initY ++ " " ++ String.fromFloat viewport.width ++ " " ++ String.fromFloat viewport.height)
                 , onWheel ScrolledMouseWheel
                 , Mouse.onMove (.offsetPos >> ReceivedMousePosition)
                 , Mouse.onDown (always MouseButtonClicked)
@@ -565,6 +567,7 @@ drawPlanet scale playerLocation ( planet, position ) =
         , width "4000"
         , height "4000"
         , overflow "visible"
+        , class "planet-wrapper"
         ]
         [ g [ reverseScale { x = 2000, y = 2000 } 0.03 scale ]
             [ svg
@@ -595,6 +598,14 @@ drawPlanet scale playerLocation ( planet, position ) =
                 , onClick (PlanetClicked planet.id)
                 ]
                 []
+            , text_
+                [ class "planet-label"
+                , textLength "2000"
+                , x "1000"
+                , y "1500"
+                , fill "white"
+                ]
+                [ text (Planets.name planet.id) ]
             ]
         ]
 
