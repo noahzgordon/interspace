@@ -15,11 +15,13 @@ import Length
 import LineSegment2d as Line
 import List.Extra as List
 import Maybe.Extra as Maybe
-import Planets exposing (Planet, PlanetId(..))
+import Menus
+import Model exposing (..)
+import Planets exposing (Planet, PlanetId(..), PlanetInfo)
 import Point2d as Point
 import Quantity
 import Speed
-import Svg exposing (Svg, circle, g, line, polygon, rect, svg, text, text_)
+import Svg exposing (Svg, circle, foreignObject, g, line, polygon, rect, svg, text, text_)
 import Svg.Attributes exposing (..)
 import Svg.Events exposing (onClick)
 import Svg.Lazy exposing (lazy, lazy2, lazy3)
@@ -64,40 +66,6 @@ daysPassedAtStart =
 {- MODEL -}
 
 
-type alias Rectangle =
-    { width : Float
-    , height : Float
-    }
-
-
-type alias PlanetPositions =
-    { mercury : Coordinates
-    , venus : Coordinates
-    , earth : Coordinates
-    , mars : Coordinates
-    , ceres : Coordinates
-    , vesta : Coordinates
-    , jupiter : Coordinates
-    , saturn : Coordinates
-    , uranus : Coordinates
-    , neptune : Coordinates
-    , pluto : Coordinates
-    }
-
-
-type alias Model =
-    { viewport : Maybe { width : Float, height : Float }
-    , scale : Float
-    , focalPoint : Coordinates
-    , mousePosition : Coordinates
-    , dragging : Bool
-    , shiftPressed : Bool
-    , planetPositions : PlanetPositions
-    , plottingPositions : Maybe PlanetPositions
-    , playerLocation : PlanetId
-    }
-
-
 center =
     systemSize / 2
 
@@ -129,7 +97,45 @@ init _ =
             , pluto = positionPlanet Planets.pluto
             }
       , plottingPositions = Nothing
+      , marketInfo =
+            { mercury =
+                { buy = [], sell = [] }
+            , venus =
+                { buy = [], sell = [] }
+            , earth =
+                { buy = [], sell = [] }
+            , mars =
+                { buy =
+                    [ ( "Water", 1092.39 )
+                    , ( "Vegimax(TM) Earth Mineral Mixture", 509.29 )
+                    , ( "Faunalite(TM) Livestock Starter Kit", 201.42 )
+                    , ( "Toy Spaceships", 54.24 )
+                    ]
+                , sell =
+                    [ ( "Silicon", 211.11 )
+                    , ( "Iron", 423.12 )
+                    , ( "Sulfur", 321.23 )
+                    , ( "Martian Soil Research", 12.21 )
+                    , ( "RPIF Pamphlets", 0.52 )
+                    ]
+                }
+            , ceres =
+                { buy = [], sell = [] }
+            , vesta =
+                { buy = [], sell = [] }
+            , jupiter =
+                { buy = [], sell = [] }
+            , saturn =
+                { buy = [], sell = [] }
+            , uranus =
+                { buy = [], sell = [] }
+            , neptune =
+                { buy = [], sell = [] }
+            , pluto =
+                { buy = [], sell = [] }
+            }
       , playerLocation = Planets.Earth
+      , selectedPlanet = Nothing
       }
     , Task.perform ReceivedViewportInfo getViewport
     )
@@ -139,13 +145,17 @@ init _ =
 {- UPDATE -}
 
 
+type ClickTarget
+    = Background
+
+
 type Message
     = ReceivedViewportInfo Viewport
     | ReceivedMousePosition ( Float, Float )
     | ReceivedKeyDown Key
     | ReceivedKeyUp Key
     | ScrolledMouseWheel Wheel.Event
-    | MouseButtonClicked
+    | MouseButtonClicked ClickTarget
     | MouseButtonReleased
     | PlanetClicked PlanetId
     | TimePassed Float
@@ -168,8 +178,8 @@ update message model =
                 Just viewport ->
                     let
                         ( newX, newY ) =
-                            ( ((xPos + 10 - (viewport.width / 2)) / model.scale) + model.focalPoint.x
-                            , ((yPos + 10 - (viewport.height / 2)) / model.scale) + model.focalPoint.y
+                            ( ((xPos - (viewport.width / 2)) / model.scale) + model.focalPoint.x
+                            , ((yPos - (viewport.height / 2)) / model.scale) + model.focalPoint.y
                             )
                     in
                     if model.dragging then
@@ -246,7 +256,12 @@ update message model =
                     ( { model | shiftPressed = True }, Cmd.none )
 
                 Escape ->
-                    ( { model | plottingPositions = Nothing }, Cmd.none )
+                    ( { model
+                        | plottingPositions = Nothing
+                        , selectedPlanet = Nothing
+                      }
+                    , Cmd.none
+                    )
 
                 _ ->
                     ( model, Cmd.none )
@@ -259,8 +274,10 @@ update message model =
                 _ ->
                     ( model, Cmd.none )
 
-        MouseButtonClicked ->
-            ( { model | dragging = True }, Cmd.none )
+        MouseButtonClicked target ->
+            case target of
+                Background ->
+                    ( { model | dragging = True }, Cmd.none )
 
         MouseButtonReleased ->
             ( { model | dragging = False }, Cmd.none )
@@ -321,7 +338,11 @@ update message model =
                     ( { model | plottingPositions = Nothing }, Cmd.none )
 
                 else
-                    ( { model | plottingPositions = Just model.planetPositions }, Cmd.none )
+                    ( { model
+                        | plottingPositions = Just model.planetPositions
+                      }
+                    , Cmd.none
+                    )
 
             else
                 case model.plottingPositions of
@@ -335,7 +356,7 @@ update message model =
                         )
 
                     Nothing ->
-                        ( model, Cmd.none )
+                        ( { model | selectedPlanet = Just planetId }, Cmd.none )
 
 
 movePlanet : Float -> PlanetId -> Coordinates -> Coordinates
@@ -486,10 +507,10 @@ playView model =
             svg
                 [ class "play-view"
                 , viewBox (String.fromFloat initX ++ " " ++ String.fromFloat initY ++ " " ++ String.fromFloat viewport.width ++ " " ++ String.fromFloat viewport.height)
+                , width (viewport.width + 10 |> String.fromFloat)
+                , height (viewport.height + 10 |> String.fromFloat)
                 , onWheel ScrolledMouseWheel
                 , Mouse.onMove (.offsetPos >> ReceivedMousePosition)
-                , Mouse.onDown (always MouseButtonClicked)
-                , Mouse.onUp (always MouseButtonReleased)
                 , cursor
                     (if model.dragging then
                         "grabbing"
@@ -499,7 +520,11 @@ playView model =
                     )
                 ]
                 -- background elements
-                [ g [ scaleTransform model.focalPoint model.scale ]
+                [ g
+                    [ scaleTransform model.focalPoint model.scale
+                    , Mouse.onDown (always (MouseButtonClicked Background))
+                    , Mouse.onUp (always MouseButtonReleased)
+                    ]
                     [ rect [ fill "black", width (String.fromFloat systemSize), height (String.fromFloat systemSize) ] []
 
                     -- da stars
@@ -531,6 +556,7 @@ playView model =
                             Html.text ""
                     , g [] (List.map (drawPlanet model.scale model.playerLocation) planetList)
                     ]
+                , drawMenu model viewport
                 ]
 
 
@@ -595,6 +621,8 @@ drawPlanet scale playerLocation ( planet, position ) =
                 , cx "2000"
                 , cy "2000"
                 , cursor "pointer"
+
+                -- unify w/ MouseButtonClicked ?
                 , onClick (PlanetClicked planet.id)
                 ]
                 []
@@ -632,6 +660,43 @@ starPositions viewport scale focalPoint =
         )
         []
         xPositions
+
+
+drawMenu : Model -> Rectangle -> Svg Message
+drawMenu model viewport =
+    case model.selectedPlanet of
+        Just planetId ->
+            let
+                menuX =
+                    model.focalPoint.x - (viewport.width / 3)
+
+                menuY =
+                    model.focalPoint.y - (viewport.height / 3)
+
+                -- planet =
+                -- Planets.get planetId
+            in
+            svg
+                [ width (viewport.width / 3 * 2 |> String.fromFloat)
+                , height (viewport.height / 3 * 2 |> String.fromFloat)
+                , x (String.fromFloat menuX)
+                , y (String.fromFloat menuY)
+                ]
+                [ rect
+                    [ width "100%"
+                    , height "100%"
+                    , rx "15"
+                    , ry "15"
+                    , fill "#444"
+                    , cursor "default"
+                    ]
+                    []
+                , foreignObject [ x "0", y "0", width "100%", height "100%" ]
+                    [ Menus.drawFor model planetId ]
+                ]
+
+        Nothing ->
+            text ""
 
 
 loadingScreen : Html Message

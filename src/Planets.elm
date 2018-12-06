@@ -1,4 +1,4 @@
-module Planets exposing (Planet, PlanetId(..), ceres, earth, get, jupiter, mars, mercury, name, neptune, pluto, saturn, uranus, venus, vesta)
+module Planets exposing (Planet, PlanetId(..), PlanetInfo, ceres, earth, get, getInfo, jupiter, mars, mercury, name, neptune, pluto, saturn, uranus, venus, vesta)
 
 import Coordinates exposing (Coordinates)
 
@@ -15,6 +15,21 @@ type PlanetId
     | Uranus
     | Neptune
     | Pluto
+
+
+type alias PlanetInfo a =
+    { mercury : a
+    , venus : a
+    , earth : a
+    , mars : a
+    , ceres : a
+    , vesta : a
+    , jupiter : a
+    , saturn : a
+    , uranus : a
+    , neptune : a
+    , pluto : a
+    }
 
 
 type alias Planet =
@@ -200,3 +215,40 @@ get id =
 
         Pluto ->
             pluto
+
+
+getInfo : PlanetInfo a -> PlanetId -> a
+getInfo info id =
+    case id of
+        Mercury ->
+            info.mercury
+
+        Venus ->
+            info.venus
+
+        Earth ->
+            info.earth
+
+        Mars ->
+            info.mars
+
+        Ceres ->
+            info.ceres
+
+        Vesta ->
+            info.vesta
+
+        Jupiter ->
+            info.jupiter
+
+        Saturn ->
+            info.saturn
+
+        Uranus ->
+            info.uranus
+
+        Neptune ->
+            info.neptune
+
+        Pluto ->
+            info.pluto
