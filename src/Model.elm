@@ -2,6 +2,7 @@ module Model exposing (MarketInfo, Model, PlanetPositions, PlanetaryMarketInfo, 
 
 import Coordinates exposing (Coordinates)
 import Planets exposing (PlanetId, PlanetInfo)
+import Sprite exposing (Sprite)
 
 
 type alias Rectangle =
@@ -24,6 +25,10 @@ type alias PlanetaryMarketInfo =
     PlanetInfo MarketInfo
 
 
+type alias PlanetSprites =
+    PlanetInfo (Maybe Sprite)
+
+
 type alias Model =
     { viewport : Maybe Rectangle
     , scale : Float
@@ -36,4 +41,7 @@ type alias Model =
     , marketInfo : PlanetaryMarketInfo
     , playerLocation : PlanetId
     , selectedPlanet : Maybe PlanetId
+    , planetSprites : PlanetSprites
+    , gameTime : Float
+    , playTime : Float
     }

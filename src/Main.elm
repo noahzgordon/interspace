@@ -21,6 +21,7 @@ import Planets exposing (Planet, PlanetId(..), PlanetInfo)
 import Point2d as Point
 import Quantity
 import Speed
+import Sprite
 import Svg exposing (Svg, circle, foreignObject, g, line, polygon, rect, svg, text, text_)
 import Svg.Attributes exposing (..)
 import Svg.Events exposing (onClick)
@@ -76,6 +77,20 @@ init _ =
         positionPlanet planet =
             { x = center, y = center - planet.orbitalRadius }
                 |> movePlanet daysPassedAtStart planet.id
+
+        spriteFor planet =
+            Maybe.map
+                (\s ->
+                    Sprite.continuous
+                        { sheet = s
+                        , rows = 1
+                        , columns = 3
+                        , frameSize = ( 64, 64 )
+                        , frameRate = 500
+                        , frameSequence = [ ( 1, 1 ), ( 1, 2 ), ( 1, 3 ) ]
+                        }
+                )
+                planet.sprite
     in
     ( { viewport = Nothing
       , scale = 0.01
@@ -84,19 +99,12 @@ init _ =
       , dragging = False
       , shiftPressed = False
       , planetPositions =
-            { mercury = positionPlanet Planets.mercury
-            , venus = positionPlanet Planets.venus
-            , earth = positionPlanet Planets.earth
-            , mars = positionPlanet Planets.mars
-            , ceres = positionPlanet Planets.ceres
-            , vesta = positionPlanet Planets.vesta
-            , jupiter = positionPlanet Planets.jupiter
-            , saturn = positionPlanet Planets.saturn
-            , uranus = positionPlanet Planets.uranus
-            , neptune = positionPlanet Planets.neptune
-            , pluto = positionPlanet Planets.pluto
-            }
+            Planets.init (\id -> positionPlanet (Planets.get id))
+      , planetSprites =
+            Planets.init (\id -> spriteFor (Planets.get id))
       , plottingPositions = Nothing
+      , gameTime = 0
+      , playTime = 0
       , marketInfo =
             { mercury =
                 { buy = [], sell = [] }
@@ -223,19 +231,8 @@ update message model =
                                 ( { model
                                     | mousePosition = { x = newX, y = newY }
                                     , plottingPositions =
-                                        Just
-                                            { mercury = movePlanet daysAdjustment Mercury plottingPositions.mercury
-                                            , venus = movePlanet daysAdjustment Venus plottingPositions.venus
-                                            , earth = movePlanet daysAdjustment Earth plottingPositions.earth
-                                            , mars = movePlanet daysAdjustment Mars plottingPositions.mars
-                                            , ceres = movePlanet daysAdjustment Ceres plottingPositions.ceres
-                                            , vesta = movePlanet daysAdjustment Vesta plottingPositions.vesta
-                                            , jupiter = movePlanet daysAdjustment Jupiter plottingPositions.jupiter
-                                            , saturn = movePlanet daysAdjustment Saturn plottingPositions.saturn
-                                            , uranus = movePlanet daysAdjustment Uranus plottingPositions.uranus
-                                            , neptune = movePlanet daysAdjustment Neptune plottingPositions.neptune
-                                            , pluto = movePlanet daysAdjustment Pluto plottingPositions.pluto
-                                            }
+                                        Just <|
+                                            Planets.apply (\id info -> movePlanet daysAdjustment id info) plottingPositions
                                   }
                                 , Cmd.none
                                 )
@@ -313,24 +310,25 @@ update message model =
                 -- 1 second = 100 days
                 daysPassed =
                     delta / 10
-            in
-            ( { model
-                | planetPositions =
-                    { mercury = movePlanet daysPassed Mercury model.planetPositions.mercury
-                    , venus = movePlanet daysPassed Venus model.planetPositions.venus
-                    , earth = movePlanet daysPassed Earth model.planetPositions.earth
-                    , mars = movePlanet daysPassed Mars model.planetPositions.mars
-                    , ceres = movePlanet daysPassed Ceres model.planetPositions.ceres
-                    , vesta = movePlanet daysPassed Vesta model.planetPositions.vesta
-                    , jupiter = movePlanet daysPassed Jupiter model.planetPositions.jupiter
-                    , saturn = movePlanet daysPassed Saturn model.planetPositions.saturn
-                    , uranus = movePlanet daysPassed Uranus model.planetPositions.uranus
-                    , neptune = movePlanet daysPassed Neptune model.planetPositions.neptune
-                    , pluto = movePlanet daysPassed Pluto model.planetPositions.pluto
+
+                modelWithUpdates =
+                    { model
+                        | playTime = model.playTime + delta
+                        , planetSprites = Planets.apply (\_ sprite -> Maybe.map (Sprite.addTime delta) sprite) model.planetSprites
                     }
-              }
-            , Cmd.none
-            )
+            in
+            if model.shiftPressed && Maybe.isNothing model.plottingPositions then
+                ( { modelWithUpdates
+                    | planetPositions =
+                        Planets.apply (\id info -> movePlanet daysPassed id info)
+                            model.planetPositions
+                    , gameTime = model.gameTime + delta
+                  }
+                , Cmd.none
+                )
+
+            else
+                ( modelWithUpdates, Cmd.none )
 
         PlanetClicked planetId ->
             if planetId == model.playerLocation then
@@ -385,11 +383,7 @@ movePlanet days planetId position =
 subscriptions : Model -> Sub Message
 subscriptions model =
     Sub.batch
-        [ if model.shiftPressed && Maybe.isNothing model.plottingPositions then
-            Browser.Events.onAnimationFrameDelta TimePassed
-
-          else
-            Sub.none
+        [ Browser.Events.onAnimationFrameDelta TimePassed
         , Browser.Events.onKeyDown (keyDecoder |> Json.map ReceivedKeyDown)
         , Browser.Events.onKeyUp (keyDecoder |> Json.map ReceivedKeyUp)
         ]
@@ -554,7 +548,7 @@ playView model =
 
                         Nothing ->
                             Html.text ""
-                    , g [] (List.map (drawPlanet model.scale model.playerLocation) planetList)
+                    , g [] (List.map (drawPlanet model) planetList)
                     ]
                 , drawMenu model viewport
                 ]
@@ -585,8 +579,8 @@ reverseScale position threshold scale =
         attribute "" ""
 
 
-drawPlanet : Float -> PlanetId -> ( Planet, Coordinates ) -> Svg Message
-drawPlanet scale playerLocation ( planet, position ) =
+drawPlanet : Model -> ( Planet, Coordinates ) -> Svg Message
+drawPlanet model ( planet, position ) =
     svg
         [ x (position.x - 2000 |> String.fromFloat)
         , y (position.y - 2000 |> String.fromFloat)
@@ -595,14 +589,14 @@ drawPlanet scale playerLocation ( planet, position ) =
         , overflow "visible"
         , class "planet-wrapper"
         ]
-        [ g [ reverseScale { x = 2000, y = 2000 } 0.03 scale ]
+        [ g [ reverseScale { x = 2000, y = 2000 } 0.03 model.scale ]
             [ svg
                 [ x "1700"
                 , y "1100"
                 , width "600"
                 , height "600"
                 , visibility
-                    (if playerLocation == planet.id then
+                    (if model.playerLocation == planet.id then
                         "visible"
 
                      else
@@ -615,17 +609,24 @@ drawPlanet scale playerLocation ( planet, position ) =
                     ]
                     []
                 ]
-            , circle
-                [ fill planet.color
-                , r "200"
-                , cx "2000"
-                , cy "2000"
-                , cursor "pointer"
+            , case Planets.getInfo model.planetSprites planet.id of
+                Nothing ->
+                    circle
+                        [ fill planet.color
+                        , r "200"
+                        , cx "2000"
+                        , cy "2000"
+                        , cursor "pointer"
 
-                -- unify w/ MouseButtonClicked ?
-                , onClick (PlanetClicked planet.id)
-                ]
-                []
+                        -- unify w/ MouseButtonClicked ?
+                        , onClick (PlanetClicked planet.id)
+                        ]
+                        []
+
+                Just sprite ->
+                    svg [ x "1800", y "1800", width "400", height "400" ]
+                        [ Sprite.drawSVG sprite
+                        ]
             , text_
                 [ class "planet-label"
                 , textLength "2000"
