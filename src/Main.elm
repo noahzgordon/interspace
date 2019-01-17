@@ -22,7 +22,7 @@ import Point2d as Point
 import Quantity
 import Speed
 import Sprite
-import Svg exposing (Svg, circle, foreignObject, g, line, polygon, rect, svg, text, text_)
+import Svg exposing (Svg, circle, foreignObject, g, image, line, polygon, rect, svg, text, text_)
 import Svg.Attributes exposing (..)
 import Svg.Events exposing (onClick)
 import Svg.Lazy exposing (lazy, lazy2, lazy3)
@@ -86,8 +86,8 @@ init _ =
                         , rows = 1
                         , columns = 3
                         , frameSize = ( 64, 64 )
-                        , frameRate = 500
-                        , frameSequence = [ ( 1, 1 ), ( 1, 2 ), ( 1, 3 ) ]
+                        , frameRate = 1000
+                        , frameSequence = [ ( 1, 1 ), ( 2, 1 ), ( 3, 1 ) ]
                         }
                 )
                 planet.sprite
@@ -525,12 +525,14 @@ playView model =
                     , lazy3 drawStarGroup viewport model.scale model.focalPoint
 
                     -- da sun
-                    , circle
+                    , image
                         [ reverseScale { x = center, y = center } 0.015 model.scale
                         , fill "yellow"
-                        , r "1000"
-                        , cx (String.fromFloat center)
-                        , cy (String.fromFloat center)
+                        , width "2000"
+                        , height "2000"
+                        , x (String.fromFloat (center - 1000))
+                        , y (String.fromFloat (center - 1000))
+                        , xlinkHref "file:///Users/noah/Workspace/interspace/sun.png"
                         ]
                         []
                     , case model.plottingPositions of
@@ -624,9 +626,15 @@ drawPlanet model ( planet, position ) =
                         []
 
                 Just sprite ->
-                    svg [ x "1800", y "1800", width "400", height "400" ]
-                        [ Sprite.drawSVG sprite
+                    Sprite.drawSVG
+                        [ x "1800"
+                        , y "1800"
+                        , width "400"
+                        , height "400"
+                        , cursor "pointer"
+                        , onClick (PlanetClicked planet.id)
                         ]
+                        sprite
             , text_
                 [ class "planet-label"
                 , textLength "2000"

@@ -101,7 +101,7 @@ venus =
 earth : Planet
 earth =
     { color = "#182A61"
-    , sprite = Just "file:///Users/noah/Workspace/interspace/earth.gif"
+    , sprite = Just "file:///Users/noah/Workspace/interspace/earth.png"
     , orbitalPeriod = 365.2
     , orbitalRadius = 149600000 / 5000
     , id = Earth

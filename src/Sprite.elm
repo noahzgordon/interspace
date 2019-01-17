@@ -1,14 +1,19 @@
 module Sprite exposing (Sprite, SpriteInfo, addTime, continuous, drawSVG)
 
+import Array exposing (Array)
 import Svg exposing (Svg)
-import Svg.Attributes exposing (viewBox, xlinkHref)
+import Svg.Attributes exposing (height, viewBox, width, xlinkHref)
 
 
 type Sprite
     = Sprite
-        { info : SpriteInfo
-        , time : Float
-        , currentFrame : Maybe ( Int, Int )
+        { time : Float
+        , sheet : String
+        , frameSize : ( Int, Int )
+        , frameSequence : Array ( Int, Int )
+        , frameRate : Float
+        , rows : Int
+        , columns : Int
         }
 
 
@@ -31,16 +36,64 @@ addTime addedTime (Sprite info) =
 continuous : SpriteInfo -> Sprite
 continuous info =
     Sprite
-        { info = info
+        { sheet = info.sheet
+        , frameSize = info.frameSize
+        , frameSequence = Array.fromList info.frameSequence
+        , frameRate = info.frameRate
         , time = 0
-        , currentFrame = List.head info.frameSequence
+        , rows = info.rows
+        , columns = info.columns
         }
 
 
-drawSVG : Sprite -> Svg msg
-drawSVG (Sprite info) =
-    Svg.image
-        [ viewBox (String.fromInt (Tuple.first info.info.frameSize) ++ " " ++ String.fromInt (Tuple.second info.info.frameSize) ++ " 0 0")
-        , xlinkHref info.info.sheet
+drawSVG : List (Svg.Attribute msg) -> Sprite -> Svg msg
+drawSVG attrs (Sprite info) =
+    let
+        ( frameX, frameY ) =
+            info.time
+                / info.frameRate
+                |> floor
+                |> modBy (Array.length info.frameSequence)
+                |> (\i -> Array.get i info.frameSequence)
+                |> Maybe.withDefault ( 0, 0 )
+
+        viewBoxMinX =
+            (frameX - 1)
+                * Tuple.first info.frameSize
+                |> String.fromInt
+
+        viewBoxMinY =
+            (frameY - 1)
+                * Tuple.second info.frameSize
+                |> String.fromInt
+
+        viewBoxWidth =
+            Tuple.first info.frameSize
+                |> String.fromInt
+
+        viewBoxHeight =
+            Tuple.second info.frameSize
+                |> String.fromInt
+
+        imageWidth =
+            Tuple.first info.frameSize
+                * info.columns
+                |> String.fromInt
+
+        imageHeight =
+            Tuple.second info.frameSize
+                * info.rows
+                |> String.fromInt
+    in
+    Svg.svg
+        ([ viewBox (viewBoxMinX ++ " " ++ viewBoxMinY ++ " " ++ viewBoxWidth ++ " " ++ viewBoxHeight)
+         ]
+            ++ attrs
+        )
+        [ Svg.image
+            [ xlinkHref info.sheet
+            , width imageWidth
+            , height imageHeight
+            ]
+            []
         ]
-        []
